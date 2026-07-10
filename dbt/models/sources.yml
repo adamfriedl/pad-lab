@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw
+    database: "{{ target.project }}"
+    schema: "{{ var('raw_dataset') }}"
+    tables:
+      - name: actblue_donations
+        description: Simulated Airbyte landing table for ActBlue donations

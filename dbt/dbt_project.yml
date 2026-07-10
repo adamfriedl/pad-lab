@@ -1,0 +1,28 @@
+name: pad_lab
+version: 1.0.0
+config-version: 2
+
+profile: pad_lab
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  pad_lab:
+    staging:
+      +schema: pad_lab_staging
+      +materialized: view
+    marts:
+      +schema: pad_lab_mart
+      +materialized: table
+
+vars:
+  raw_dataset: pad_lab_raw

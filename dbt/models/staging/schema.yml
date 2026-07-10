@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: stg_donations
+    description: Cleaned and deduplicated ActBlue donations from raw landing table
+    columns:
+      - name: donation_id
+        tests:
+          - unique
+          - not_null
+      - name: amount
+        tests:
+          - not_null
+      - name: campaign_id
+        tests:
+          - not_null
+      - name: donation_date
+        tests:
+          - not_null

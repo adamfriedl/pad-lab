@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: daily_donation_totals
+    description: Daily donation aggregates per campaign for dashboard consumption
+    columns:
+      - name: donation_date
+        tests:
+          - not_null
+      - name: campaign_id
+        tests:
+          - not_null
+      - name: donation_count
+        tests:
+          - not_null
+      - name: total_amount
+        tests:
+          - not_null

@@ -1,0 +1,12 @@
+pad_lab:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: YOUR_GCP_PROJECT_ID
+      dataset: pad_lab_staging
+      location: US
+      threads: 4
+      timeout_seconds: 300
+      priority: interactive

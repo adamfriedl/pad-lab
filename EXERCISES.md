@@ -123,12 +123,12 @@ GROUP BY 1 ORDER BY 1"
 
 Sketch alerts you'd want on this pipeline:
 
-| Signal | Alert | First check |
-|--------|-------|-------------|
-| Freshness | Mart stale > 6h | Airbyte/dbt job status |
-| Volume | Donations drop >20% DoD | Raw vs staging counts |
-| Job failure | dbt run failed | Recent deploy/config change |
-| Cost | Bytes scanned spike | Query history |
+| Signal      | Alert                   | First check                 |
+| ----------- | ----------------------- | --------------------------- |
+| Freshness   | Mart stale > 6h         | Airbyte/dbt job status      |
+| Volume      | Donations drop >20% DoD | Raw vs staging counts       |
+| Job failure | dbt run failed          | Recent deploy/config change |
+| Cost        | Bytes scanned spike     | Query history               |
 
 **Say out loud:** "Every alert links to what to check first — on-call shouldn't grep Slack at 2am."
 

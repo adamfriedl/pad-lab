@@ -17,12 +17,12 @@ ActBlue CSV (simulated)
   → dashboards (SketchPAD/Looker in prod)
 ```
 
-| Layer | Resource | Production equivalent |
-|-------|----------|----------------------|
-| Landing | `gs://pad-lab-{project}/landing/` | Airbyte → GCS |
-| Raw | `pad_lab_raw.actblue_donations` | PAD raw tables |
-| Staging | `pad_lab_staging.stg_donations` | dbt staging models |
-| Mart | `pad_lab_mart.daily_donation_totals` | dbt marts → SketchPAD |
+| Layer   | Resource                             | Production equivalent |
+| ------- | ------------------------------------ | --------------------- |
+| Landing | `gs://pad-lab-{project}/landing/`    | Airbyte → GCS         |
+| Raw     | `pad_lab_raw.actblue_donations`      | PAD raw tables        |
+| Staging | `pad_lab_staging.stg_donations`      | dbt staging models    |
+| Mart    | `pad_lab_mart.daily_donation_totals` | dbt marts → SketchPAD |
 
 ## Prerequisites
 
@@ -83,13 +83,13 @@ pad-lab/
 
 ## Stack mapping
 
-| This lab | CTA production |
-|----------|----------------|
-| `bq load` from GCS | Airbyte sync (PADdle) |
-| dbt views + incremental table | dbt staging/mart models |
-| `./scripts/load_batch2.sh` | Scheduled Airflow/Composer job |
-| Manual `bq query` | SketchPAD / Looker dashboards |
-| (not implemented) | PADLock monitoring |
+| This lab                      | CTA production                 |
+| ----------------------------- | ------------------------------ |
+| `bq load` from GCS            | Airbyte sync (PADdle)          |
+| dbt views + incremental table | dbt staging/mart models        |
+| `./scripts/load_batch2.sh`    | Scheduled Airflow/Composer job |
+| Manual `bq query`             | SketchPAD / Looker dashboards  |
+| (not implemented)             | PADLock monitoring             |
 
 ## License
 

@@ -1,5 +1,6 @@
 .venv/
 dbt/profiles.yml
+dbt/.user.yml
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/

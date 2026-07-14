@@ -1,19 +1,34 @@
 version: 2
 
 models:
-  - name: stg_donations
-    description: Cleaned and deduplicated ActBlue donations from raw landing table
+  - name: stg_contributions
+    description: Cleaned and deduplicated FEC individual contributions
     columns:
-      - name: donation_id
+      - name: sub_id
+        description: FEC unique transaction identifier
         tests:
           - unique
           - not_null
       - name: amount
         tests:
           - not_null
-      - name: campaign_id
+      - name: committee_id
         tests:
           - not_null
-      - name: donation_date
+      - name: contribution_receipt_date
+        tests:
+          - not_null
+      - name: contributor_state
+        description: Two-letter state code
+
+  - name: stg_committees
+    description: Cleaned FEC committee dimension table
+    columns:
+      - name: committee_id
+        description: FEC committee identifier (e.g. C00703975)
+        tests:
+          - unique
+          - not_null
+      - name: committee_name
         tests:
           - not_null

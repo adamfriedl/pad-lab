@@ -1,8 +1,6 @@
-# PAD Lab Exercises (~45 min)
+# PAD Lab Exercises
 
-Guided walkthrough of the pipeline in [README.md](./README.md). Each section includes a **say out loud** line for interview practice.
-
-Set your project once:
+Guided walkthrough of the pipeline (~45 min). Each section includes a **say out loud** line for interview practice.
 
 ```bash
 PROJECT=$(gcloud config get-value project)
@@ -12,129 +10,163 @@ PROJECT=$(gcloud config get-value project)
 
 ## 1. Walk the pipeline (8 min)
 
-Compare row counts across layers:
+Row counts across layers:
 
 ```bash
 bq query --use_legacy_sql=false "
-SELECT 'raw' AS layer, COUNT(*) AS row_count
-FROM \`${PROJECT}.pad_lab_raw.actblue_donations\`
+SELECT 'raw' AS layer, COUNT(*) AS rows
+FROM \`${PROJECT}.pad_lab_raw.fec_contributions\`
 UNION ALL
 SELECT 'staging', COUNT(*)
-FROM \`${PROJECT}.pad_lab_staging.stg_donations\`
+FROM \`${PROJECT}.pad_lab_staging.stg_contributions\`
 UNION ALL
-SELECT 'mart_groups', COUNT(*)
-FROM \`${PROJECT}.pad_lab_mart.daily_donation_totals\`"
+SELECT 'mart (daily)', COUNT(*)
+FROM \`${PROJECT}.pad_lab_mart.daily_contributions\`
+UNION ALL
+SELECT 'mart (committee)', COUNT(*)
+FROM \`${PROJECT}.pad_lab_mart.committee_summary\`"
 ```
 
-Campaign totals from the mart:
+Top committees by total raised:
 
 ```bash
 bq query --use_legacy_sql=false "
-SELECT campaign_id, SUM(donation_count) AS donations, ROUND(SUM(total_amount), 2) AS total
-FROM \`${PROJECT}.pad_lab_mart.daily_donation_totals\`
-GROUP BY 1 ORDER BY 1"
+SELECT committee_name, party, total_contributions,
+       ROUND(total_raised, 2) AS total_raised
+FROM \`${PROJECT}.pad_lab_mart.committee_summary\`
+ORDER BY total_raised DESC
+LIMIT 10"
 ```
 
 Verify staging dedupe (should return 0):
 
 ```bash
 bq query --use_legacy_sql=false "
-SELECT COUNT(*) AS duplicate_donation_ids
+SELECT COUNT(*) AS duplicate_sub_ids
 FROM (
-  SELECT donation_id
-  FROM \`${PROJECT}.pad_lab_staging.stg_donations\`
+  SELECT sub_id
+  FROM \`${PROJECT}.pad_lab_staging.stg_contributions\`
   GROUP BY 1
   HAVING COUNT(*) > 1
 )"
 ```
 
-**Say out loud:** "This is PADdle's shape — vendor data lands in raw, dbt builds staging and marts, dashboards read from marts."
+**Say out loud:** "Vendor data lands in raw via API sync, dbt builds staging views for cleaning and marts for aggregation. Dashboards read from marts, never raw."
 
 ---
 
-## 2. Cost control (10 min)
+## 2. Cost control — partition pruning (10 min)
 
 Compare bytes scanned with and without a partition filter:
 
 ```bash
-# Bad — full table scan
+# Full table scan
 bq query --use_legacy_sql=false --dry_run "
-SELECT SUM(amount) FROM \`${PROJECT}.pad_lab_raw.actblue_donations\`"
+SELECT SUM(contribution_receipt_amount)
+FROM \`${PROJECT}.pad_lab_raw.fec_contributions\`"
 
-# Good — partition filter
+# Partition-pruned (single month)
 bq query --use_legacy_sql=false --dry_run "
-SELECT SUM(amount) FROM \`${PROJECT}.pad_lab_raw.actblue_donations\`
-WHERE DATE(created_at) = '2026-01-15'"
+SELECT SUM(contribution_receipt_amount)
+FROM \`${PROJECT}.pad_lab_raw.fec_contributions\`
+WHERE contribution_receipt_date BETWEEN '2024-06-01' AND '2024-06-30'"
 ```
 
-Look for `running this query will process X bytes of data` in each output.
+Look for `This query will process X bytes` in each output.
 
-**Say out loud:** "Cost control on BigQuery is culture plus guardrails — partition filters, curated views, exploration sandboxes separate from production tables, and postmortem cost spikes like outages."
+**Say out loud:** "BigQuery cost control is culture plus guardrails — partition filters, curated views for common queries, exploration sandboxes separate from production tables, and cost-spike postmortems."
 
 ---
 
-## 3. Simulate nightly sync (8 min)
+## 3. Simulate incremental load (10 min)
+
+Fetch a new batch of contributions and run dbt incrementally:
 
 ```bash
-./scripts/load_batch2.sh
+# Fetch 200 more records from a different state
+python -m loaders.load_contributions --max-records 200 --state CA
+
+# Run dbt (incremental — only recalculates affected keys)
+(cd dbt && dbt run && dbt test)
 ```
 
-Verify totals moved:
-
-```bash
-bq query --use_legacy_sql=false "
-SELECT campaign_id, SUM(donation_count) AS donations, SUM(total_amount) AS total
-FROM \`${PROJECT}.pad_lab_mart.daily_donation_totals\`
-GROUP BY 1 ORDER BY 1"
-```
-
-**Say out loud:** "Airbyte appends to raw nightly; dbt incrementally merges affected keys. We don't full-refresh every cycle."
-
----
-
-## 4. Silent failure (10 min)
-
-Batch 2 was generated **without `gotv_march` donations**. The pipeline succeeds but one campaign stops updating.
-
-Raw rows by campaign:
+Check that mart totals updated:
 
 ```bash
 bq query --use_legacy_sql=false "
-SELECT campaign_id, COUNT(*) AS raw_rows
-FROM \`${PROJECT}.pad_lab_raw.actblue_donations\`
-GROUP BY 1 ORDER BY 1"
+SELECT committee_id,
+       SUM(contribution_count) AS contributions,
+       ROUND(SUM(total_amount), 2) AS total
+FROM \`${PROJECT}.pad_lab_mart.daily_contributions\`
+GROUP BY 1 ORDER BY total DESC LIMIT 10"
 ```
 
-Batch 2 rows only (gotv_march should be missing):
+**Say out loud:** "The loader appends to raw. dbt's incremental strategy only recalculates date/committee keys that received new data — not a full refresh every cycle."
+
+---
+
+## 4. Cross-source join (5 min)
+
+The `committee_summary` mart joins contributions with the committee dimension:
 
 ```bash
 bq query --use_legacy_sql=false "
-SELECT campaign_id, COUNT(*) AS batch2_rows
-FROM \`${PROJECT}.pad_lab_raw.actblue_donations\`
-WHERE donation_id LIKE 'AB-2-%'
-GROUP BY 1 ORDER BY 1"
+SELECT party_full,
+       COUNT(*) AS committees,
+       SUM(total_contributions) AS contributions,
+       ROUND(SUM(total_raised), 2) AS total_raised
+FROM \`${PROJECT}.pad_lab_mart.committee_summary\`
+WHERE party_full != ''
+GROUP BY 1 ORDER BY total_raised DESC"
 ```
 
-**Say out loud:** "The job succeeded — that's what makes it dangerous. I'd compare source vs destination counts by campaign and notify the client if dashboards may show wrong totals."
+**Say out loud:** "This is why dimension tables matter — raw contributions only have committee IDs. Joining with the committee source adds party, type, and state for meaningful aggregation."
 
 ---
 
-## 5. Observability judgment (5 min)
+## 5. Data quality debugging (10 min)
 
-Sketch alerts you'd want on this pipeline:
+Check for committees in contributions that aren't in the dimension table:
 
-| Signal      | Alert                   | First check                 |
-| ----------- | ----------------------- | --------------------------- |
-| Freshness   | Mart stale > 6h         | Airbyte/dbt job status      |
-| Volume      | Donations drop >20% DoD | Raw vs staging counts       |
-| Job failure | dbt run failed          | Recent deploy/config change |
-| Cost        | Bytes scanned spike     | Query history               |
+```bash
+bq query --use_legacy_sql=false "
+SELECT c.committee_id, COUNT(*) AS orphan_contributions
+FROM \`${PROJECT}.pad_lab_staging.stg_contributions\` c
+LEFT JOIN \`${PROJECT}.pad_lab_staging.stg_committees\` cm
+  USING (committee_id)
+WHERE cm.committee_id IS NULL
+GROUP BY 1 ORDER BY 2 DESC
+LIMIT 10"
+```
 
-**Say out loud:** "Every alert links to what to check first — on-call shouldn't grep Slack at 2am."
+If orphans exist, reload the dimension and rebuild the mart:
+
+```bash
+python -m loaders.load_committees --from-contributions
+(cd dbt && dbt run --select committee_summary && dbt test)
+```
+
+**Say out loud:** "The pipeline succeeded but some committees are missing from the dimension table. I'd compare source vs. destination coverage per dimension and flag gaps before they reach dashboards."
 
 ---
 
-## 6. Cleanup
+## 6. Observability sketch (5 min)
+
+Alerts you'd want on this pipeline in production:
+
+| Signal        | Alert                       | First check                                |
+| ------------- | --------------------------- | ------------------------------------------ |
+| Freshness     | Raw table stale > 6h        | Airbyte/loader job status                  |
+| Volume        | Contributions drop >30% DoD | Source API health, date filter drift       |
+| Join coverage | >5% orphan committee_ids    | Dimension sync timing                      |
+| Cost          | Bytes scanned spike >2x     | Query history, missing partition filter    |
+| Job failure   | dbt run/test failed         | Recent model change, upstream schema drift |
+
+**Say out loud:** "Every alert links to what to check first. On-call shouldn't be grepping Slack at 2am."
+
+---
+
+## 7. Cleanup
 
 ```bash
 ./teardown.sh

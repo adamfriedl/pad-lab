@@ -2,8 +2,15 @@ version: 2
 
 sources:
   - name: raw
-    database: "{{ target.project }}"
+    database: '{{ target.project }}'
     schema: "{{ var('raw_dataset') }}"
     tables:
-      - name: actblue_donations
-        description: Simulated Airbyte landing table for ActBlue donations
+      - name: fec_contributions
+        description: >
+          FEC Schedule A individual contributions loaded from the
+          OpenFEC API.  Append-only; may contain duplicates across
+          loader runs (staging handles dedup).
+      - name: fec_committees
+        description: >
+          FEC committee master records — dimension table for enriching
+          contribution data with party, type, and designation.

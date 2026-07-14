@@ -1,4 +1,6 @@
 .venv/
+.env
+data/samples/
 dbt/profiles.yml
 dbt/.user.yml
 dbt/target/

@@ -1,18 +1,38 @@
 version: 2
 
 models:
-  - name: daily_donation_totals
-    description: Daily donation aggregates per campaign for dashboard consumption
+  - name: daily_contributions
+    description: >
+      Daily contribution aggregates per committee — incremental merge
+      on (date, committee_id). Mirrors the pattern PAD uses for
+      nightly dbt runs without full-refresh.
     columns:
-      - name: donation_date
+      - name: contribution_receipt_date
         tests:
           - not_null
-      - name: campaign_id
+      - name: committee_id
         tests:
           - not_null
-      - name: donation_count
+      - name: contribution_count
         tests:
           - not_null
       - name: total_amount
+        tests:
+          - not_null
+
+  - name: committee_summary
+    description: >
+      Committee-level fundraising metrics joined with committee
+      dimension data (party, type, state).  Full refresh on each
+      dbt run.
+    columns:
+      - name: committee_id
+        tests:
+          - unique
+          - not_null
+      - name: total_contributions
+        tests:
+          - not_null
+      - name: total_raised
         tests:
           - not_null

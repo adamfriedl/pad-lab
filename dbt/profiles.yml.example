@@ -4,7 +4,7 @@ pad_lab:
     dev:
       type: bigquery
       method: oauth
-      project: YOUR_GCP_PROJECT_ID
+      project: YOUR_GCP_PROJECT
       dataset: pad_lab_staging
       location: US
       threads: 4

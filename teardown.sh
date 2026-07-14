@@ -19,9 +19,11 @@ if gsutil ls -b "gs://${BUCKET}" >/dev/null 2>&1; then
   gsutil -m rm -r "gs://${BUCKET}" || true
 fi
 
-if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT" >/dev/null 2>&1; then
+if gcloud iam service-accounts describe "$SA_EMAIL" \
+  --project="$PROJECT" >/dev/null 2>&1; then
   echo "    Deleting service account ${SA_EMAIL}..."
-  gcloud iam service-accounts delete "$SA_EMAIL" --project="$PROJECT" --quiet
+  gcloud iam service-accounts delete "$SA_EMAIL" \
+    --project="$PROJECT" --quiet
 fi
 
 rm -f "${ROOT}/dbt/profiles.yml"

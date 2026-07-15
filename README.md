@@ -131,17 +131,13 @@ Committees load directly to BigQuery (no GCS step) — dimension tables are smal
 - **Cross-source join** — `committee_summary` mart joins contribution facts with the committee dimension for party/type enrichment.
 - **dbt tests** on staging (unique IDs, not-null) and marts (aggregates, singular test for positive counts).
 - **Dataset-scoped IAM** on a dedicated pipeline service account.
-- **Sample data cached** in `data/samples/` for offline use or interview demos.
+- **Sample data cached** in `data/samples/` for offline use without hitting the API.
 
 ## Cleanup
 
 ```bash
 ./teardown.sh
 ```
-
-## Interview framing
-
-> "I built a lab on real FEC data to understand how PAD works — Python loaders mirroring Airbyte, GCS landing, partitioned raw tables, dbt staging and incremental marts, committee dimension joins. I haven't operated this stack in production at your scale, but I walked the layers hands-on so I can reason about cost, observability, and data quality the same way I do for infrastructure and CI/CD."
 
 ## Stack mapping
 

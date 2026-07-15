@@ -1,6 +1,6 @@
 # PAD Lab Exercises
 
-Guided walkthrough of the pipeline (~45 min). Each section includes a **say out loud** line for interview practice.
+Guided walkthrough of the pipeline (~45 min). Each section ends with a **takeaway** summarizing the concept.
 
 ```bash
 PROJECT=$(gcloud config get-value project)
@@ -51,7 +51,7 @@ FROM (
 )"
 ```
 
-**Say out loud:** "Vendor data lands in raw via API sync, dbt builds staging views for cleaning and marts for aggregation. Dashboards read from marts, never raw."
+**Takeaway:** "Vendor data lands in raw via API sync, dbt builds staging views for cleaning and marts for aggregation. Dashboards read from marts, never raw."
 
 ---
 
@@ -74,7 +74,7 @@ WHERE contribution_receipt_date BETWEEN '2024-06-01' AND '2024-06-30'"
 
 Look for `This query will process X bytes` in each output.
 
-**Say out loud:** "BigQuery cost control is culture plus guardrails — partition filters, curated views for common queries, exploration sandboxes separate from production tables, and cost-spike postmortems."
+**Takeaway:** "BigQuery cost control is culture plus guardrails — partition filters, curated views for common queries, exploration sandboxes separate from production tables, and cost-spike postmortems."
 
 ---
 
@@ -101,7 +101,7 @@ FROM \`${PROJECT}.pad_lab_mart.daily_contributions\`
 GROUP BY 1 ORDER BY total DESC LIMIT 10"
 ```
 
-**Say out loud:** "The loader appends to raw. dbt's incremental strategy only recalculates date/committee keys that received new data — not a full refresh every cycle."
+**Takeaway:** "The loader appends to raw. dbt's incremental strategy only recalculates date/committee keys that received new data — not a full refresh every cycle."
 
 ---
 
@@ -120,7 +120,7 @@ WHERE party_full != ''
 GROUP BY 1 ORDER BY total_raised DESC"
 ```
 
-**Say out loud:** "This is why dimension tables matter — raw contributions only have committee IDs. Joining with the committee source adds party, type, and state for meaningful aggregation."
+**Takeaway:** "This is why dimension tables matter — raw contributions only have committee IDs. Joining with the committee source adds party, type, and state for meaningful aggregation."
 
 ---
 
@@ -146,7 +146,7 @@ python -m loaders.load_committees --from-contributions
 (cd dbt && dbt run --select committee_summary && dbt test)
 ```
 
-**Say out loud:** "The pipeline succeeded but some committees are missing from the dimension table. I'd compare source vs. destination coverage per dimension and flag gaps before they reach dashboards."
+**Takeaway:** "The pipeline succeeded but some committees are missing from the dimension table. I'd compare source vs. destination coverage per dimension and flag gaps before they reach dashboards."
 
 ---
 
@@ -162,7 +162,7 @@ Alerts you'd want on this pipeline in production:
 | Cost          | Bytes scanned spike >2x     | Query history, missing partition filter    |
 | Job failure   | dbt run/test failed         | Recent model change, upstream schema drift |
 
-**Say out loud:** "Every alert links to what to check first. On-call shouldn't be grepping Slack at 2am."
+**Takeaway:** "Every alert links to what to check first. On-call shouldn't be grepping Slack at 2am."
 
 ---
 

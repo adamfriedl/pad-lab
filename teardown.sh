@@ -14,9 +14,9 @@ for ds in pad_lab_mart pad_lab_staging pad_lab_raw; do
   bq rm -r -f -d "${PROJECT}:${ds}" 2>/dev/null || true
 done
 
-if gsutil ls -b "gs://${BUCKET}" >/dev/null 2>&1; then
+if gcloud storage buckets describe "gs://${BUCKET}" --project="$PROJECT" >/dev/null 2>&1; then
   echo "    Deleting landing bucket gs://${BUCKET}..."
-  gsutil -m rm -r "gs://${BUCKET}" || true
+  gcloud storage rm --recursive "gs://${BUCKET}" --quiet || true
 fi
 
 if gcloud iam service-accounts describe "$SA_EMAIL" \

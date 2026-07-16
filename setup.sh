@@ -28,7 +28,6 @@ echo
 
 require_cmd gcloud
 require_cmd bq
-require_cmd gsutil
 
 # ---- Python venv (loaders + dbt) ----------------------------------------
 if [[ ! -x "${ROOT}/.venv/bin/python" ]]; then
@@ -52,8 +51,9 @@ gcloud config set project "$PROJECT" >/dev/null
 
 # ---- GCS bucket ---------------------------------------------------------
 echo "==> Creating GCS landing bucket..."
-gsutil ls -b "gs://${BUCKET}" >/dev/null 2>&1 || \
-  gsutil mb -p "$PROJECT" -l "$REGION" -b on "gs://${BUCKET}"
+gcloud storage buckets describe "gs://${BUCKET}" --project="$PROJECT" >/dev/null 2>&1 || \
+  gcloud storage buckets create "gs://${BUCKET}" \
+    --project="$PROJECT" --location="$REGION" --uniform-bucket-level-access
 
 # ---- BigQuery datasets --------------------------------------------------
 echo "==> Creating BigQuery datasets..."

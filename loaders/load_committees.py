@@ -16,9 +16,10 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from google.cloud import bigquery
+from google.cloud.exceptions import NotFound
 
 from .fec import FECClient
 
@@ -28,6 +29,7 @@ _PROJECT = ""
 _RAW_DATASET = "pad_lab_raw"
 _TABLE = "fec_committees"
 _CONTRIB_TABLE = "fec_contributions"
+_REFRESH_AFTER = timedelta(days=7)
 
 SCHEMA = [
     bigquery.SchemaField("committee_id", "STRING"),
@@ -76,7 +78,7 @@ def normalize(rec: dict) -> dict | None:
 
 
 def _committee_ids_from_bq() -> list[str]:
-    """Read distinct committee_ids already loaded in the contributions table."""
+    """Read distinct committee_ids referenced in the contributions table."""
     client = bigquery.Client(project=_project())
     query = f"""
         SELECT DISTINCT committee_id
@@ -86,15 +88,66 @@ def _committee_ids_from_bq() -> list[str]:
     return [row.committee_id for row in client.query(query).result()]
 
 
-def load_to_bigquery(records: list[dict]) -> int:
-    """Load committee records directly to BigQuery (WRITE_TRUNCATE)."""
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _existing_committees() -> tuple[set[str], datetime | None]:
+    """Return committee IDs already in raw and the most recent load time."""
+    client = bigquery.Client(project=_project())
+    table_ref = f"{_project()}.{_RAW_DATASET}.{_TABLE}"
+    try:
+        client.get_table(table_ref)
+    except NotFound:
+        return set(), None
+
+    query = f"""
+        SELECT committee_id, MAX(_loaded_at) AS loaded_at
+        FROM `{table_ref}`
+        WHERE committee_id IS NOT NULL AND committee_id != ''
+        GROUP BY committee_id
+    """
+    rows = list(client.query(query).result())
+    if not rows:
+        return set(), None
+    existing = {row.committee_id for row in rows}
+    max_loaded_at = max(_as_utc(row.loaded_at) for row in rows)
+    return existing, max_loaded_at
+
+
+def _ids_to_fetch(needed: set[str]) -> tuple[list[str], str]:
+    """Choose delta vs full refresh based on what's loaded and how stale it is."""
+    existing, max_loaded_at = _existing_committees()
+    now = datetime.now(timezone.utc)
+
+    if max_loaded_at is None:
+        return sorted(needed), "full refresh (no existing data)"
+
+    age = now - max_loaded_at
+    if age > _REFRESH_AFTER:
+        return sorted(needed), f"full refresh (last load {age.days}d ago)"
+
+    delta = needed - existing
+    if not delta:
+        return [], "up to date"
+    return sorted(delta), f"delta ({len(delta)} new of {len(needed)} needed)"
+
+
+def load_to_bigquery(records: list[dict], *, append: bool = False) -> int:
+    """Load committee records directly to BigQuery."""
     client = bigquery.Client(project=_project())
     table_ref = f"{_project()}.{_RAW_DATASET}.{_TABLE}"
 
     job_config = bigquery.LoadJobConfig(
         source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
         schema=SCHEMA,
-        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        write_disposition=(
+            bigquery.WriteDisposition.WRITE_APPEND
+            if append
+            else bigquery.WriteDisposition.WRITE_TRUNCATE
+        ),
     )
 
     job = client.load_table_from_json(records, table_ref, job_config=job_config)
@@ -125,19 +178,28 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
     # ---- fetch or load from cache ----------------------------------------
+    append_to_bq = False
     if args.input_file:
         log.info("Loading cached data from %s", args.input_file)
         with open(args.input_file) as f:
             records = [json.loads(line) for line in f if line.strip()]
     elif args.from_contributions:
-        ids = _committee_ids_from_bq()
-        log.info("Found %d committee IDs in contributions table", len(ids))
-        if not ids:
+        needed = set(_committee_ids_from_bq())
+        log.info("Found %d committee IDs in contributions table", len(needed))
+        if not needed:
             log.error("No committees found — load contributions first")
             sys.exit(1)
+
+        ids, mode = _ids_to_fetch(needed)
+        log.info("Committee sync: %s", mode)
+        if not ids:
+            log.info("Skipping FEC fetch and BQ load")
+            return
+
         fec = FECClient()
         raw = fec.fetch_committees(committee_ids=ids)
         records = [r for r in (normalize(rec) for rec in raw) if r is not None]
+        append_to_bq = True
     else:
         fec = FECClient()
         log.info(
@@ -176,7 +238,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # ---- load to BQ (direct, no GCS — dimension tables are small) --------
-    rows = load_to_bigquery(records)
+    rows = load_to_bigquery(records, append=append_to_bq)
     print(
         f"\n  loaded {rows:,} committees to "
         f"{_project()}.{_RAW_DATASET}.{_TABLE}"

@@ -96,15 +96,28 @@ class FECClient:
     ) -> list[dict]:
         """Fetch committee records — by ID list or by cycle."""
         if committee_ids:
-            out: list[dict] = []
-            for cid in committee_ids:
-                try:
-                    data = self._get(f"committee/{cid}/")
-                    if data.get("results"):
-                        out.extend(data["results"])
-                except requests.HTTPError:
-                    log.warning("Could not fetch committee %s", cid)
-            return out
+            results: list[dict] = []
+            # /committees/ accepts repeated committee_id filters — batch to
+            # stay within per_page and avoid one HTTP call per ID.
+            for i in range(0, len(committee_ids), _PER_PAGE):
+                batch = committee_ids[i : i + _PER_PAGE]
+                params: dict = {
+                    "committee_id": batch,
+                    "per_page": _PER_PAGE,
+                    "page": 1,
+                }
+                while True:
+                    data = self._get("committees/", params)
+                    page = data.get("results", [])
+                    if not page:
+                        break
+                    results.extend(page)
+                    log.info("  committees fetched: %d", len(results))
+                    pagination = data.get("pagination", {})
+                    if params["page"] >= pagination.get("pages", 1):
+                        break
+                    params["page"] += 1
+            return results
 
         params: dict = {"cycle": cycle, "per_page": _PER_PAGE}
         results: list[dict] = []

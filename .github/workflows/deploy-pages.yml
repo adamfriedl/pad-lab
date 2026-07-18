@@ -29,6 +29,9 @@ jobs:
           cache-dependency-path: viz/package-lock.json
       - name: Install and build
         working-directory: viz
+        env:
+          # Repo variable, or default to this project's viz bucket.
+          VITE_DATA_BASE_URL: ${{ vars.VITE_DATA_BASE_URL || 'https://storage.googleapis.com/pad-lab-gcp-lab-497423-viz/' }}
         run: |
           npm ci
           npm run build

@@ -1,7 +1,7 @@
-/** GCS bucket for live mart JSON — matches infra `viz_data_base_url` (pad-lab-{project}-viz). */
-const REMOTE_DATA_BASE = import.meta.env.PROD
-  ? 'https://storage.googleapis.com/pad-lab-gcp-lab-497423-viz/'
-  : undefined;
+/** GCS base URL for live mart JSON in production builds (trailing slash optional). */
+const fromEnv = import.meta.env.VITE_DATA_BASE_URL as string | undefined;
+
+const REMOTE_DATA_BASE = import.meta.env.PROD && fromEnv ? fromEnv.replace(/\/?$/, '/') : undefined;
 
 /** Resolve a mart JSON path against bundled files or live GCS export. */
 export function dataUrl(path: string): string {

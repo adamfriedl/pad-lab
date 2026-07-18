@@ -6,7 +6,9 @@ to GCS, then loads append-only into a partitioned raw table.  dbt handles
 cleaning and deduplication downstream.
 
 Usage:
-    python -m loaders.load_contributions --max-records 1000 --state OR
+    python -m loaders.load_contributions --max-records 10000 --state OR
+    python -m loaders.load_contributions --since-watermark --lookback-days 7
+    python -m loaders.load_contributions --min-date 2024-06-01 --max-date 2024-06-30
     python -m loaders.load_contributions --input-file data/samples/contributions.ndjson
     python -m loaders.load_contributions --dry-run --save-sample
 """
@@ -16,9 +18,10 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from google.cloud import bigquery, storage
+from google.cloud.exceptions import NotFound
 
 from .fec import FECClient
 
@@ -64,6 +67,50 @@ def _bucket() -> str:
     if not _BUCKET:
         _BUCKET = f"pad-lab-{_project()}"
     return _BUCKET
+
+
+def _parse_date(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"invalid date {value!r} — use YYYY-MM-DD"
+        ) from exc
+
+
+def _max_receipt_date_from_bq() -> date | None:
+    """Latest contribution_receipt_date in raw, or None if table missing/empty."""
+    client = bigquery.Client(project=_project())
+    table_ref = f"{_project()}.{_RAW_DATASET}.{_TABLE}"
+    try:
+        client.get_table(table_ref)
+    except NotFound:
+        return None
+
+    query = f"""
+        SELECT MAX(contribution_receipt_date) AS max_date
+        FROM `{table_ref}`
+    """
+    rows = list(client.query(query).result())
+    if not rows or rows[0].max_date is None:
+        return None
+    max_date = rows[0].max_date
+    if isinstance(max_date, datetime):
+        return max_date.date()
+    return max_date
+
+
+def _watermark_min_date(lookback_days: int) -> tuple[date | None, str]:
+    """Compute min_date from raw high-water mark minus lookback overlap."""
+    max_date = _max_receipt_date_from_bq()
+    if max_date is None:
+        return None, "bootstrap (no existing raw data)"
+
+    min_date = max_date - timedelta(days=lookback_days)
+    return (
+        min_date,
+        f"watermark max={max_date} lookback={lookback_days}d -> min={min_date}",
+    )
 
 
 def normalize(rec: dict) -> dict | None:
@@ -152,7 +199,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Fetch FEC contributions and load to BigQuery"
     )
-    parser.add_argument("--max-records", type=int, default=1000)
+    parser.add_argument("--max-records", type=int, default=10000)
     parser.add_argument("--state", help="Contributor state filter (e.g. OR)")
     parser.add_argument(
         "--cycle",
@@ -164,6 +211,27 @@ def main(argv: list[str] | None = None) -> None:
         "--min-amount",
         type=int,
         help="Minimum contribution amount in dollars",
+    )
+    parser.add_argument(
+        "--min-date",
+        type=_parse_date,
+        help="Earliest contribution_receipt_date (YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--max-date",
+        type=_parse_date,
+        help="Latest contribution_receipt_date (YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--since-watermark",
+        action="store_true",
+        help="Fetch since MAX(contribution_receipt_date) in raw minus lookback",
+    )
+    parser.add_argument(
+        "--lookback-days",
+        type=int,
+        default=int(os.environ.get("LOOKBACK_DAYS", "7")),
+        help="Overlap days when using --since-watermark (default: 7)",
     )
     parser.add_argument(
         "--input-file",
@@ -183,6 +251,16 @@ def main(argv: list[str] | None = None) -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
+    min_date = args.min_date
+    max_date = args.max_date
+    allow_empty = False
+    if args.since_watermark:
+        if args.min_date is not None:
+            parser.error("use either --since-watermark or --min-date, not both")
+        min_date, mode = _watermark_min_date(args.lookback_days)
+        allow_empty = True
+        log.info("Contribution sync: %s", mode)
+
     # ---- fetch or load from cache ----------------------------------------
     if args.input_file:
         log.info("Loading cached data from %s", args.input_file)
@@ -191,14 +269,18 @@ def main(argv: list[str] | None = None) -> None:
     else:
         fec = FECClient()
         log.info(
-            "Fetching contributions (cycle=%d, max=%d)…",
+            "Fetching contributions (cycle=%d, max=%d, min_date=%s, max_date=%s)…",
             args.cycle,
             args.max_records,
+            min_date.isoformat() if min_date else None,
+            max_date.isoformat() if max_date else None,
         )
         raw = fec.fetch_contributions(
             two_year_transaction_period=args.cycle,
             contributor_state=args.state,
             min_amount=args.min_amount,
+            min_date=min_date.isoformat() if min_date else None,
+            max_date=max_date.isoformat() if max_date else None,
             max_records=args.max_records,
         )
         log.info("API returned %d records", len(raw))
@@ -206,6 +288,9 @@ def main(argv: list[str] | None = None) -> None:
         log.info("Normalized to %d valid records", len(records))
 
     if not records:
+        if allow_empty:
+            log.info("No new contributions in window — skipping GCS/BQ load")
+            return
         log.error("No records to load")
         sys.exit(1)
 

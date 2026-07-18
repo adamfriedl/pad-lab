@@ -5,8 +5,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 [[ -f "${ROOT}/.env" ]] && set -a && source "${ROOT}/.env" && set +a
 
-MAX_RECORDS=1000
+MAX_RECORDS=10000
+LOOKBACK_DAYS="${LOOKBACK_DAYS:-7}"
 SAVE_SAMPLE=false
+SINCE_WATERMARK=true
 
 usage() {
   cat <<EOF
@@ -16,9 +18,11 @@ Usage: ./run_pipeline.sh [options]
   then run dbt run + dbt test.
 
 Options:
-  --max-records N   Contribution fetch limit (default: 1000)
-  --save-sample     Update data/samples/*.ndjson
-  -h, --help        Show this help
+  --max-records N     Contribution fetch limit (default: 10000)
+  --lookback-days N   Overlap when using watermark (default: 7)
+  --full-refresh      Fetch from cycle start (no watermark)
+  --save-sample       Update data/samples/*.ndjson
+  -h, --help          Show this help
 EOF
 }
 
@@ -27,6 +31,14 @@ while [[ $# -gt 0 ]]; do
     --max-records)
       MAX_RECORDS="$2"
       shift 2
+      ;;
+    --lookback-days)
+      LOOKBACK_DAYS="$2"
+      shift 2
+      ;;
+    --full-refresh)
+      SINCE_WATERMARK=false
+      shift
       ;;
     --save-sample)
       SAVE_SAMPLE=true
@@ -51,6 +63,9 @@ fi
 export PATH="${ROOT}/.venv/bin:${PATH}"
 
 CONTRIB_ARGS=(--max-records "$MAX_RECORDS")
+if $SINCE_WATERMARK; then
+  CONTRIB_ARGS+=(--since-watermark --lookback-days "$LOOKBACK_DAYS")
+fi
 COMMITTEE_ARGS=(--from-contributions)
 if $SAVE_SAMPLE; then
   CONTRIB_ARGS+=(--save-sample)

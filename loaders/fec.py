@@ -57,7 +57,9 @@ class FECClient:
         two_year_transaction_period: int = 2024,
         contributor_state: str | None = None,
         min_amount: int | None = None,
-        max_records: int = 1000,
+        min_date: str | None = None,
+        max_date: str | None = None,
+        max_records: int = 10000,
     ) -> list[dict]:
         """Paginate Schedule A individual contributions (keyset cursor)."""
         params: dict = {
@@ -71,6 +73,10 @@ class FECClient:
             params["contributor_state"] = contributor_state
         if min_amount is not None:
             params["min_amount"] = min_amount
+        if min_date:
+            params["min_date"] = min_date
+        if max_date:
+            params["max_date"] = max_date
 
         results: list[dict] = []
         while len(results) < max_records:

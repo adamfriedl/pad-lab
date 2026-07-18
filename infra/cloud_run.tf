@@ -86,7 +86,7 @@ resource "google_service_account_iam_member" "scheduler_sa_user_by_scheduler_age
 
 resource "google_cloud_scheduler_job" "pipeline" {
   name             = "pad-lab-pipeline-daily"
-  description      = "Daily FEC ingest + dbt run"
+  description      = "Daily Cloud Build (cached image rebuild) + FEC ingest + dbt run"
   schedule         = var.pipeline_schedule
   time_zone        = "UTC"
   attempt_deadline = "1800s"
@@ -99,7 +99,31 @@ resource "google_cloud_scheduler_job" "pipeline" {
 
   http_target {
     http_method = "POST"
-    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.pipeline.name}:run"
+    uri         = "https://cloudbuild.googleapis.com/v1/projects/${var.project_id}/builds"
+
+    headers = {
+      "Content-Type" = "application/json"
+    }
+
+    body = base64encode(jsonencode({
+      source = {
+        gitSource = {
+          url      = "https://github.com/${var.pipeline_github_owner}/${var.pipeline_github_repo}"
+          revision = "refs/heads/${var.pipeline_github_branch}"
+        }
+      }
+      filename = "cloudbuild.yaml"
+      substitutions = {
+        _REGION  = var.region
+        _IMAGE   = local.pipeline_image
+        _JOB     = google_cloud_run_v2_job.pipeline.name
+        _RUN_JOB = "true"
+      }
+      options = {
+        logging = "CLOUD_LOGGING_ONLY"
+      }
+      timeout = "1800s"
+    }))
 
     oauth_token {
       service_account_email = google_service_account.scheduler.email
@@ -109,7 +133,8 @@ resource "google_cloud_scheduler_job" "pipeline" {
 
   depends_on = [
     google_project_service.apis,
-    google_cloud_run_v2_job_iam_member.scheduler_invoker,
+    google_project_iam_member.scheduler_cloudbuild_editor,
+    google_cloud_run_v2_job_iam_member.cloudbuild_job_runner,
     google_service_account_iam_member.scheduler_sa_user_by_scheduler_agent,
   ]
 }

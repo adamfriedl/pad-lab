@@ -33,6 +33,24 @@ variable "pipeline_image_tag" {
   default     = "latest"
 }
 
+variable "pipeline_github_owner" {
+  description = "GitHub owner for scheduled Cloud Build (pulls source before build)"
+  type        = string
+  default     = "adamfriedl"
+}
+
+variable "pipeline_github_repo" {
+  description = "GitHub repo name for scheduled Cloud Build"
+  type        = string
+  default     = "pad-lab"
+}
+
+variable "pipeline_github_branch" {
+  description = "Branch ref for scheduled Cloud Build (must be reachable by Cloud Build gitSource)"
+  type        = string
+  default     = "main"
+}
+
 variable "freshness_hours" {
   description = "Alert if no successful Cloud Run Job execution within this many hours (max 24 for Monitoring absence conditions)"
   type        = number

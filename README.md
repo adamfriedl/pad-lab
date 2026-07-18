@@ -21,6 +21,7 @@ Scheduled path (professional twin of `./run_pipeline.sh`):
 
 ```
 Cloud Scheduler (daily cron)
+  → Cloud Build (rebuild pipeline image, layer cache from Artifact Registry)
   → Cloud Run Job (pad-lab-pipeline SA)
       → loaders → GCS → BigQuery raw → dbt run/test
   → Cloud Monitoring alerts on failure / missed success
@@ -178,19 +179,22 @@ python -m loaders.load_committees --cycle 2024 --max-records 200
 ### Scheduled / Cloud Run refresh
 
 ```bash
-./scripts/build_image.sh    # after loader/dbt changes
-./scripts/run_job.sh        # execute now (waits for completion)
+./scripts/run_job.sh        # Cloud Build: rebuild image (cached) + execute job
+./scripts/build_image.sh    # rebuild/push image only (no ingest/dbt)
 ./scripts/check_freshness.sh
 ```
 
-Daily schedule defaults to `0 14 * * *` UTC (Cloud Scheduler → Cloud Run Job). The job runs as `pad-lab-pipeline`; Scheduler triggers as `pad-lab-scheduler` (`roles/run.invoker` only).
+Daily schedule defaults to `0 14 * * *` UTC (Cloud Scheduler → **Cloud Build** → Cloud Run Job). Each run rebuilds the pipeline image with Docker layer cache from Artifact Registry, then executes ingest + dbt. Manual `run_job.sh` uses your **local** tree; the schedule pulls **`main`** from GitHub (`infra` vars `pipeline_github_*`).
+
+The job runs as `pad-lab-pipeline`; Scheduler triggers as `pad-lab-scheduler` (`roles/cloudbuild.builds.editor`).
 
 ## IAM model
 
 | Identity            | Purpose                            | Privileges                                                                           |
 | ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
 | `pad-lab-pipeline`  | Cloud Run Job runtime              | BQ jobUser + dataEditor on lab datasets, GCS objectAdmin on landing, Secret accessor |
-| `pad-lab-scheduler` | Cloud Scheduler OIDC/OAuth trigger | `roles/run.invoker` on the job only                                                  |
+| `pad-lab-scheduler` | Cloud Scheduler OIDC/OAuth trigger | `roles/cloudbuild.builds.editor` (build + run via Cloud Build) |
+| Cloud Build default SA | Image build + `gcloud run jobs execute` | Artifact Registry writer, `roles/run.developer` on the job |
 
 ## Monitoring
 

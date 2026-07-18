@@ -197,19 +197,19 @@ terraform plan
 terraform output
 ```
 
-Trigger the Cloud Run Job once (same path as the daily schedule):
+Trigger the cloud pipeline once (same path as the daily schedule — rebuilds image, then runs):
 
 ```bash
 ./scripts/run_job.sh
 ```
 
-Rebuild the image after loader/dbt changes:
+Build the image only (no ingest/dbt):
 
 ```bash
 ./scripts/build_image.sh
 ```
 
-**Takeaway:** "Infra is declarative (datasets, IAM, schedule, alerts). The container is the pipeline; Scheduler only has permission to start it."
+**Takeaway:** "Infra is declarative (datasets, IAM, schedule, alerts). Cloud Build rebuilds the container from source each run (cached layers in Artifact Registry), then the job runs ingest + dbt."
 
 ---
 

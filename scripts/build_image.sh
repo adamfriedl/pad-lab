@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and push the pipeline image to Artifact Registry.
+# Build and push the pipeline image via Cloud Build (cached layers from Artifact Registry).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,13 +15,12 @@ if [[ -z "$PROJECT" || "$PROJECT" == "(unset)" ]]; then
   exit 1
 fi
 
-echo "==> Configuring Docker auth for Artifact Registry..."
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-
-echo "==> Building and pushing ${IMAGE}"
+echo "==> Cloud Build: push ${IMAGE} (build only, no job run)"
 gcloud builds submit "${ROOT}" \
   --project="$PROJECT" \
-  --tag="$IMAGE" \
+  --config="${ROOT}/cloudbuild.yaml" \
+  --substitutions="_REGION=${REGION},_IMAGE=${IMAGE},_RUN_JOB=false" \
+  --timeout=1800s \
   --quiet
 
 echo "==> Image ready: ${IMAGE}"

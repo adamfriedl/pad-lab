@@ -11,4 +11,6 @@ dbt/target/
 dbt/logs/
 dbt/dbt_packages/
 dbt/profiles.yml
+viz/node_modules/
+viz/dist/
 *.md

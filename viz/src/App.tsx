@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Filters } from './components/Filters';
+import { LoadingScreen } from './components/LoadingScreen';
 import { KpiStrip } from './components/KpiStrip';
 import { PartyChart } from './components/PartyChart';
 import { TimeSeriesChart } from './components/TimeSeriesChart';
@@ -72,11 +73,7 @@ export default function App() {
   }, [filteredCommittees, series]);
 
   if (loading) {
-    return (
-      <div className='shell state'>
-        <p>Loading mart snapshots…</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !data) {
@@ -85,7 +82,7 @@ export default function App() {
         <p className='error'>Could not load dashboard data.</p>
         <p className='muted'>{error}</p>
         <p className='muted'>
-          Run <code>python scripts/export_viz_data.py</code> then refresh.
+          Run <code>python scripts/export_viz_data.py --upload</code> or check GCS / network access.
         </p>
       </div>
     );
@@ -154,9 +151,8 @@ export default function App() {
 
       <footer className='foot'>
         <p>
-          Reads committed JSON from marts only — never raw. Re-export after{' '}
-          <code>./run_pipeline.sh</code>, then push to refresh{' '}
-          <a href='https://adamfriedl.github.io/pad-lab/'>adamfriedl.github.io/pad-lab</a>.
+          Curated marts only — never raw FEC tables. Snapshots refresh after each pipeline run;
+          reload this page to pick up the latest export.
         </p>
       </footer>
     </div>

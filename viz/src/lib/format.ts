@@ -40,10 +40,23 @@ export function formatDate(iso: string | null | undefined): string {
   });
 }
 
+/** FEC party codes that often arrive without party_full in committee marts. */
+const PARTY_CODE_LABELS: Record<string, string> = {
+  DFL: 'Democratic-Farmer-Labor',
+  IND: 'Independent',
+  LIB: 'Libertarian Party',
+  NAT: 'Non-affiliated',
+  NNE: 'None',
+  OTH: 'Other',
+  UNK: 'Unknown',
+  WOR: 'Working Families',
+};
+
 export function partyLabel(partyFull: string | null | undefined, party?: string | null): string {
   const full = (partyFull || '').trim();
   if (full) return full;
-  const code = (party || '').trim();
+  const code = (party || '').trim().toUpperCase();
+  if (code && PARTY_CODE_LABELS[code]) return PARTY_CODE_LABELS[code];
   if (code) return code;
   return 'Unknown / other';
 }

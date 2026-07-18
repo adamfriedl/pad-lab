@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { CommitteeRow, DailyRow, Meta } from '../types';
-
-const base = import.meta.env.BASE_URL;
+import { dataUrl } from '../lib/dataUrl';
 
 async function loadJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${base}${path}`);
+  const res = await fetch(dataUrl(path));
   if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
   return res.json() as Promise<T>;
 }

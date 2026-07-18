@@ -1,6 +1,6 @@
 # pad-lab
 
-**Dashboard:** [adamfriedl.github.io/pad-lab](https://adamfriedl.github.io/pad-lab/)
+**Dashboard:** [adamfriedl.net/pad-lab](https://adamfriedl.net/pad-lab/)
 
 [![Deploy Pages](https://github.com/adamfriedl/pad-lab/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/adamfriedl/pad-lab/actions/workflows/deploy-pages.yml)
 
@@ -255,7 +255,7 @@ Cloud Composer 3 keeps a managed Airflow environment running 24/7. A small env t
 
 Static React site that reads **mart JSON only** (never raw).
 
-- **Live:** [adamfriedl.github.io/pad-lab](https://adamfriedl.github.io/pad-lab/) — prod fetches JSON from the public GCS viz bucket (`VITE_DATA_BASE_URL` in [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml); override via repo Actions variable or `terraform output -raw viz_data_base_url`)
+- **Live:** [adamfriedl.net/pad-lab](https://adamfriedl.net/pad-lab/) — prod fetches JSON from the public GCS viz bucket (`VITE_DATA_BASE_URL` in [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml); override via repo Actions variable or `terraform output -raw viz_data_base_url`)
 - **Local/dev:** bundled `viz/public/data/` (refresh with `python scripts/export_viz_data.py`)
 
 ```bash

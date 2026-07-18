@@ -34,38 +34,43 @@ export type DailyScale = {
   domain: [number, number];
   inScale: Array<{ date: string; total_amount: number }>;
   outliers: Array<{ date: string; total_amount: number }>;
+  /** In-scale days whose net total is below zero (refunds/adjustments). */
+  negativeDays: Array<{ date: string; total_amount: number }>;
 };
 
 export function formatCompactUsd(d: number): string {
-  const n = Math.abs(d);
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1000) return `${Math.round(n / 1000)}k`;
-  return String(Math.round(n));
+  if (d < 0) return `-${formatCompactUsd(-d)}`;
+  if (d >= 1_000_000) return `${(d / 1_000_000).toFixed(1)}M`;
+  if (d >= 1000) return `${Math.round(d / 1000)}k`;
+  return String(Math.round(d));
 }
 
 /** Left margin for y ticks plus the vertical axis label. */
 export function marginLeftForTimeSeriesY(domain: [number, number]): number {
-  const [lo, hi] = domain;
-  const samples = [lo, 0, hi * 0.25, hi * 0.5, hi * 0.75, hi].map(formatCompactUsd);
-  return marginLeftForLabels(samples) + 10;
+  const [, hi] = domain;
+  const samples = [0, hi * 0.25, hi * 0.5, hi * 0.75, hi].map(formatCompactUsd);
+  return marginLeftForLabels(samples) + 36;
 }
 
+const MAX_SPIKE_OUTLIERS = 2;
+const SPIKE_RATIO = 4;
+
 /**
- * Clip days that dominate the scale (4× next-largest) so smaller days stay visible.
- * Repeats until no single day swamps the rest — e.g. Jun 30 then Jul 1 in FEC samples.
+ * Clip at most two days that dominate the scale (4× next-largest) so smaller days stay visible.
+ * Y-axis is floored at $0; net-negative days are kept in the series but plotted at zero.
  */
 export function dailyYScale(points: Array<{ date: string; total_amount: number }>): DailyScale {
   const outliers: Array<{ date: string; total_amount: number }> = [];
   let inScale = [...points];
 
-  while (inScale.length > 1) {
+  while (inScale.length > 1 && outliers.length < MAX_SPIKE_OUTLIERS) {
     const positives = inScale.map((p) => p.total_amount).filter((v) => v > 0);
     if (positives.length <= 1) break;
 
     const sorted = [...positives].sort((a, b) => a - b);
     const max = sorted[sorted.length - 1]!;
     const secondMax = sorted[sorted.length - 2]!;
-    if (max <= secondMax * 4) break;
+    if (max <= secondMax * SPIKE_RATIO) break;
 
     const peak = inScale.reduce((a, b) => (a.total_amount >= b.total_amount ? a : b));
     outliers.push(peak);
@@ -73,18 +78,19 @@ export function dailyYScale(points: Array<{ date: string; total_amount: number }
   }
 
   if (inScale.length === 0) {
-    return { domain: [0, 1], inScale: [], outliers };
+    return { domain: [0, 1], inScale: [], outliers, negativeDays: [] };
   }
 
-  const amounts = inScale.map((p) => p.total_amount);
-  const yMin = Math.min(0, ...amounts);
-  const yMax = Math.max(...amounts);
+  const plotAmounts = inScale.map((p) => Math.max(0, p.total_amount));
+  const yMax = Math.max(...plotAmounts, 0);
   const pad = yMax > 0 ? Math.max(yMax * 0.08, 50) : 1;
+  const negativeDays = inScale.filter((p) => p.total_amount < 0);
 
   return {
-    domain: [yMin < 0 ? yMin - pad : 0, yMax > 0 ? yMax + pad : 1],
+    domain: [0, yMax > 0 ? yMax + pad : 1],
     inScale,
     outliers,
+    negativeDays,
   };
 }
 

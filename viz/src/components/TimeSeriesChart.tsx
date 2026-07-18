@@ -39,10 +39,11 @@ export function TimeSeriesChart({ data }: Props) {
         return;
       }
 
-      const { domain, inScale, outliers } = dailyYScale(data);
+      const { domain, inScale, outliers, negativeDays } = dailyYScale(data);
       const plotted = inScale.map((d) => ({
         ...d,
         date: new Date(d.date + 'T00:00:00'),
+        plotAmount: Math.max(0, d.total_amount),
       }));
       const offScale = outliers.map((d) => ({
         ...d,
@@ -68,7 +69,6 @@ export function TimeSeriesChart({ data }: Props) {
         x: { label: null, ticks: 6 },
         y: {
           label: 'Raised ($)',
-          labelAnchor: 'top',
           labelArrow: false,
           grid: true,
           domain,
@@ -78,27 +78,30 @@ export function TimeSeriesChart({ data }: Props) {
         marks: [
           Plot.areaY(plotted, {
             x: 'date',
-            y: 'total_amount',
+            y: 'plotAmount',
             fill: 'var(--accent)',
             fillOpacity: 0.14,
             curve: 'monotone-x',
           }),
           Plot.lineY(plotted, {
             x: 'date',
-            y: 'total_amount',
+            y: 'plotAmount',
             stroke: 'var(--accent)',
             strokeWidth: 2.25,
             curve: 'monotone-x',
           }),
           Plot.dot(plotted, {
             x: 'date',
-            y: 'total_amount',
+            y: 'plotAmount',
             fill: 'var(--accent)',
             r: 2.5,
             tip: {
               format: {
                 x: (d: Date) => d.toLocaleDateString(),
-                y: (d: number) => formatUsd(d, true),
+                y: false,
+                plotAmount: false,
+                total_amount: (d: number) =>
+                  d < 0 ? `${formatUsd(d, true)} (net negative; shown at $0)` : formatUsd(d, true),
               },
             },
           }),
@@ -125,14 +128,29 @@ export function TimeSeriesChart({ data }: Props) {
 
       host.append(chart);
 
-      if (note && outliers.length > 0) {
-        const clipped = [...outliers].sort((a, b) => b.total_amount - a.total_amount);
-        const parts = clipped.map(
-          (d) => `${formatDate(d.date)} (${formatUsd(d.total_amount, true)})`,
-        );
-        note.textContent = `Clipped from axis — ${parts.join(', ')} — so smaller daily totals stay visible. Only ${plotted.length} receipt date${plotted.length === 1 ? '' : 's'} in this window; gaps mean no contributions that day in the sample.`;
-      } else if (note && plotted.length < data.length) {
-        note.textContent = `${data.length - plotted.length} day(s) with no rows in the mart for this filter.`;
+      if (note) {
+        const noteParts: string[] = [];
+        if (outliers.length > 0) {
+          const clipped = [...outliers].sort((a, b) => b.total_amount - a.total_amount);
+          const parts = clipped.map(
+            (d) => `${formatDate(d.date)} (${formatUsd(d.total_amount, true)})`,
+          );
+          noteParts.push(`Spike days clipped from axis — ${parts.join(', ')}.`);
+        }
+        if (negativeDays.length > 0) {
+          const parts = negativeDays.map(
+            (d) => `${formatDate(d.date)} (${formatUsd(d.total_amount, true)})`,
+          );
+          noteParts.push(`Net negative day(s) shown at $0 on chart — ${parts.join(', ')}.`);
+        }
+        if (noteParts.length > 0) {
+          noteParts.push(
+            `${plotted.length} receipt date${plotted.length === 1 ? '' : 's'} on the line; calendar gaps mean no rows that day in the sample.`,
+          );
+          note.textContent = noteParts.join(' ');
+        } else if (plotted.length < data.length) {
+          note.textContent = `${data.length - plotted.length} day(s) with no rows in the mart for this filter.`;
+        }
       }
     };
 

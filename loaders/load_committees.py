@@ -22,6 +22,7 @@ from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
 from .fec import FECClient
+from .fec_sync import default_fec_cycle
 
 log = logging.getLogger(__name__)
 
@@ -160,7 +161,12 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Fetch FEC committees and load to BigQuery"
     )
-    parser.add_argument("--cycle", type=int, default=2024)
+    parser.add_argument(
+        "--cycle",
+        type=int,
+        default=None,
+        help="FEC cycle when listing committees (default: current cycle)",
+    )
     parser.add_argument("--max-records", type=int, default=500)
     parser.add_argument(
         "--from-contributions",
@@ -174,6 +180,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--save-sample", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
+    cycle = args.cycle if args.cycle is not None else default_fec_cycle()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
@@ -204,10 +211,10 @@ def main(argv: list[str] | None = None) -> None:
         fec = FECClient()
         log.info(
             "Fetching committees (cycle=%d, max=%d)…",
-            args.cycle,
+            cycle,
             args.max_records,
         )
-        raw = fec.fetch_committees(cycle=args.cycle, max_records=args.max_records)
+        raw = fec.fetch_committees(cycle=cycle, max_records=args.max_records)
         records = [r for r in (normalize(rec) for rec in raw) if r is not None]
 
     log.info("Normalized %d committee records", len(records))

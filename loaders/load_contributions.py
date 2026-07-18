@@ -25,6 +25,7 @@ from google.cloud import bigquery, storage
 from google.cloud.exceptions import NotFound
 
 from .fec import FECClient
+from .fec_sync import bootstrap_min_date, bootstrap_window_days, default_fec_cycle
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ def _max_receipt_date_from_bq() -> date | None:
     query = f"""
         SELECT MAX(contribution_receipt_date) AS max_date
         FROM `{table_ref}`
+        WHERE contribution_receipt_date <= CURRENT_DATE()
     """
     rows = list(client.query(query).result())
     if not rows or rows[0].max_date is None:
@@ -99,11 +101,6 @@ def _max_receipt_date_from_bq() -> date | None:
     if isinstance(max_date, datetime):
         return max_date.date()
     return max_date
-
-
-def _bootstrap_min_date(cycle: int) -> date:
-    """First day of the FEC two-year transaction period (e.g. 2023-01-01 for cycle 2024)."""
-    return date(cycle - 1, 1, 1)
 
 
 def _watermark_min_date(lookback_days: int) -> tuple[date | None, str]:
@@ -239,8 +236,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--cycle",
         type=int,
-        default=2024,
-        help="FEC two-year transaction period",
+        default=None,
+        help="FEC two-year transaction period (default: current cycle)",
     )
     parser.add_argument(
         "--min-amount",
@@ -283,6 +280,7 @@ def main(argv: list[str] | None = None) -> None:
         help="Validate only — skip GCS/BQ load",
     )
     args = parser.parse_args(argv)
+    cycle = args.cycle if args.cycle is not None else default_fec_cycle()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
@@ -296,18 +294,20 @@ def main(argv: list[str] | None = None) -> None:
         allow_empty = True
         log.info("Contribution sync: %s", mode)
         if min_date is None:
-            min_date = _bootstrap_min_date(args.cycle)
+            min_date = bootstrap_min_date(cycle)
             log.info(
-                "Bootstrap fetch: min_date=%s (start of FEC %d cycle)",
+                "Bootstrap fetch: cycle=%d min_date=%s (rolling %dd window)",
+                cycle,
                 min_date.isoformat(),
-                args.cycle,
+                bootstrap_window_days(),
             )
     elif min_date is None and not args.input_file:
-        min_date = _bootstrap_min_date(args.cycle)
+        min_date = bootstrap_min_date(cycle)
         log.info(
-            "Default min_date=%s (start of FEC %d cycle)",
+            "Default fetch: cycle=%d min_date=%s (rolling %dd window)",
+            cycle,
             min_date.isoformat(),
-            args.cycle,
+            bootstrap_window_days(),
         )
 
     # ---- fetch or load from cache ----------------------------------------
@@ -319,13 +319,13 @@ def main(argv: list[str] | None = None) -> None:
         fec = FECClient()
         log.info(
             "Fetching contributions (cycle=%d, max=%d, min_date=%s, max_date=%s)…",
-            args.cycle,
+            cycle,
             args.max_records,
             min_date.isoformat() if min_date else None,
             max_date.isoformat() if max_date else None,
         )
         raw = fec.fetch_contributions(
-            two_year_transaction_period=args.cycle,
+            two_year_transaction_period=cycle,
             contributor_state=args.state,
             min_amount=args.min_amount,
             min_date=min_date.isoformat() if min_date else None,

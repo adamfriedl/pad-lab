@@ -43,13 +43,6 @@ export function CommitteeScatterChart({ data }: Props) {
         .sort((a, b) => b.raised - a.raised)
         .slice(0, 4);
 
-      const axisMin = Math.min(...data.map((d) => Math.min(d.receipts, d.raised)));
-      const axisMax = Math.max(...data.map((d) => Math.max(d.receipts, d.raised)));
-      const avgLine = [
-        { x: axisMin, y: axisMin },
-        { x: axisMax, y: axisMax },
-      ];
-
       chart = Plot.plot({
         width: chartWidth(host.clientWidth),
         height: 320,
@@ -78,23 +71,6 @@ export function CommitteeScatterChart({ data }: Props) {
           tickFormat: (d: number) => formatCompactUsd(d),
         },
         marks: [
-          Plot.line(avgLine, {
-            x: 'x',
-            y: 'y',
-            stroke: 'var(--ink-muted)',
-            strokeOpacity: 0.22,
-            strokeDasharray: '4 4',
-          }),
-          Plot.text([{ x: axisMax, y: axisMax }], {
-            x: 'x',
-            y: 'y',
-            text: () => '~$1 avg',
-            dx: 6,
-            dy: -4,
-            fontSize: 9,
-            fill: 'var(--ink-muted)',
-            fillOpacity: 0.55,
-          }),
           Plot.dot(background, {
             x: 'receipts',
             y: 'raised',

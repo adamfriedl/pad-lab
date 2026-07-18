@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY loaders/ loaders/
 COPY dbt/ dbt/
 COPY scripts/pipeline_entrypoint.sh scripts/pipeline_entrypoint.sh
+COPY scripts/export_viz_data.py scripts/export_viz_data.py
 
 # Drop local profiles; entrypoint writes ADC-based profile at runtime.
 RUN rm -f dbt/profiles.yml \

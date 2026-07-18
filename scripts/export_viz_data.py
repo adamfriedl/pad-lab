@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Export pad_lab_mart tables to viz/public/data for the static dashboard.
+"""Export pad_lab_mart tables to JSON for the static dashboard.
 
-Queries BigQuery marts only (never raw/staging). Writes JSON snapshots
-committed with the site so GitHub Pages needs no BQ credentials.
+Queries BigQuery marts only (never raw/staging). Writes snapshots locally
+and optionally uploads to GCS for the GitHub Pages dashboard to fetch at
+runtime (no redeploy when data changes).
 
 Usage:
     python scripts/export_viz_data.py
-    python scripts/export_viz_data.py --project my-gcp-project
+    python scripts/export_viz_data.py --upload
+    python scripts/export_viz_data.py --project my-gcp-project --upload
 """
 
 from __future__ import annotations
@@ -26,6 +28,8 @@ from loaders.env import load_dotenv  # noqa: E402
 
 OUT_DIR = ROOT / "viz" / "public" / "data"
 MART_DATASET = "pad_lab_mart"
+VIZ_FILES = ("daily_contributions.json", "committee_summary.json", "meta.json")
+DEFAULT_GCS_PREFIX = ""
 
 
 def _project(cli: str | None) -> str:
@@ -52,6 +56,38 @@ def _rows(client, sql: str) -> list[dict]:
     return [dict(row.items()) for row in result]
 
 
+def _bucket_name(project: str, override: str | None) -> str:
+    return override or f"pad-lab-{project}-viz"
+
+
+def upload_to_gcs(
+    out_dir: Path,
+    *,
+    project: str,
+    bucket: str,
+    prefix: str = DEFAULT_GCS_PREFIX,
+) -> str:
+    """Upload exported JSON to GCS. Returns the public HTTPS base URL."""
+    from google.cloud import storage
+
+    client = storage.Client(project=project)
+    gcs_bucket = client.bucket(bucket)
+    prefix = prefix.strip("/")
+    for name in VIZ_FILES:
+        path = out_dir / name
+        if not path.is_file():
+            raise FileNotFoundError(f"missing export file: {path}")
+        object_name = f"{prefix}/{name}" if prefix else name
+        blob = gcs_bucket.blob(object_name)
+        blob.cache_control = "public, max-age=300"
+        blob.upload_from_filename(str(path), content_type="application/json")
+        print(f"  uploaded gs://{bucket}/{object_name}")
+
+    base_url = f"https://storage.googleapis.com/{bucket}/{prefix + '/' if prefix else ''}"
+    print(f"  public base URL: {base_url}")
+    return base_url
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", help="GCP project id")
@@ -60,6 +96,20 @@ def main() -> int:
         type=Path,
         default=OUT_DIR,
         help=f"Output directory (default: {OUT_DIR})",
+    )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help="Upload JSON files to GCS after writing locally",
+    )
+    parser.add_argument(
+        "--bucket",
+        help="GCS bucket (default: pad-lab-{project})",
+    )
+    parser.add_argument(
+        "--gcs-prefix",
+        default=DEFAULT_GCS_PREFIX,
+        help=f"Object prefix in bucket (default: {DEFAULT_GCS_PREFIX})",
     )
     args = parser.parse_args()
 
@@ -146,6 +196,17 @@ def main() -> int:
     print(f"  wrote {daily_path.relative_to(ROOT)} ({len(daily)} rows)")
     print(f"  wrote {summary_path.relative_to(ROOT)} ({len(summary)} rows)")
     print(f"  wrote {meta_path.relative_to(ROOT)}")
+
+    if args.upload:
+        bucket = _bucket_name(project, args.bucket)
+        print(f"Uploading to gs://{bucket}/ …")
+        upload_to_gcs(
+            out,
+            project=project,
+            bucket=bucket,
+            prefix=args.gcs_prefix,
+        )
+
     return 0
 
 

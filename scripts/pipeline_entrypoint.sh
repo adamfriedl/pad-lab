@@ -51,4 +51,7 @@ echo "==> Running dbt..."
   dbt test --target prod
 )
 
+echo "==> Exporting viz data to GCS..."
+python scripts/export_viz_data.py --upload
+
 echo "==> Pipeline complete."

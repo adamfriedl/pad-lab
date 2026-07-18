@@ -85,5 +85,8 @@ echo "==> Running dbt pipeline..."
   dbt test
 )
 
+echo "==> Exporting viz data to GCS..."
+python scripts/export_viz_data.py --upload
+
 echo
 echo "==> Pipeline complete."

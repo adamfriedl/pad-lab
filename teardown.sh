@@ -40,6 +40,7 @@ if [[ -d "${TF_DIR}/.terraform" ]]; then
 else
   echo "    No terraform state initialized — falling back to legacy gcloud cleanup..."
   BUCKET="pad-lab-${PROJECT}"
+  VIZ_BUCKET="pad-lab-${PROJECT}-viz"
   SA_PIPELINE="pad-lab-pipeline@${PROJECT}.iam.gserviceaccount.com"
   SA_SCHEDULER="pad-lab-scheduler@${PROJECT}.iam.gserviceaccount.com"
 
@@ -47,6 +48,7 @@ else
     bq rm -r -f -d "${PROJECT}:${ds}" 2>/dev/null || true
   done
   gcloud storage rm --recursive "gs://${BUCKET}" --quiet 2>/dev/null || true
+  gcloud storage rm --recursive "gs://${VIZ_BUCKET}" --quiet 2>/dev/null || true
   for sa in "$SA_PIPELINE" "$SA_SCHEDULER"; do
     gcloud iam service-accounts delete "$sa" --project="$PROJECT" --quiet 2>/dev/null || true
   done

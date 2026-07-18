@@ -6,6 +6,15 @@ output "landing_bucket" {
   value = google_storage_bucket.landing.url
 }
 
+output "viz_data_base_url" {
+  value       = "https://storage.googleapis.com/${google_storage_bucket.viz.name}/"
+  description = "HTTPS base URL for dashboard JSON (hardcoded in viz/src/lib/dataUrl.ts for prod builds)"
+}
+
+output "viz_bucket" {
+  value = google_storage_bucket.viz.name
+}
+
 output "raw_dataset" {
   value = "${var.project_id}.${google_bigquery_dataset.raw.dataset_id}"
 }

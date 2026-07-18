@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Trigger the pad-lab Cloud Run Job once (does not wait for completion).
+# Trigger pad-lab-pipeline on Cloud Run (prod path: container, pipeline SA, Secret Manager).
+# Blocks until the execution finishes (--wait). Safe for initial load — watermark bootstraps
+# when raw is empty.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

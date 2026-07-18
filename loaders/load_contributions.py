@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import sys
+from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 
 from google.cloud import bigquery, storage
@@ -98,6 +99,11 @@ def _max_receipt_date_from_bq() -> date | None:
     if isinstance(max_date, datetime):
         return max_date.date()
     return max_date
+
+
+def _bootstrap_min_date(cycle: int) -> date:
+    """First day of the FEC two-year transaction period (e.g. 2023-01-01 for cycle 2024)."""
+    return date(cycle - 1, 1, 1)
 
 
 def _watermark_min_date(lookback_days: int) -> tuple[date | None, str]:
@@ -183,16 +189,45 @@ def load_to_bigquery(gcs_uri: str) -> int:
     return job.output_rows or 0
 
 
+def _warn_date_concentration(records: list[dict]) -> None:
+    if not records:
+        return
+    by_date = Counter(r["contribution_receipt_date"] for r in records)
+    peak_date, peak_count = by_date.most_common(1)[0]
+    share = peak_count / len(records)
+    if share < 0.5:
+        return
+    peak_amount = sum(
+        r["contribution_receipt_amount"]
+        for r in records
+        if r["contribution_receipt_date"] == peak_date
+    )
+    log.warning(
+        "%d%% of records (%d/%d, $%s) share receipt date %s. "
+        "FEC year-end filings often use 12/31; if this dominates the time "
+        "series, re-bootstrap with a fresh fetch (sort=-contribution_receipt_date).",
+        round(share * 100),
+        peak_count,
+        len(records),
+        f"{peak_amount:,.0f}",
+        peak_date,
+    )
+
+
 def _print_summary(records: list[dict]) -> None:
     amounts = [r["contribution_receipt_amount"] for r in records]
     states = {r["contributor_state"] for r in records if r["contributor_state"]}
     committees = {r["committee_id"] for r in records if r["committee_id"]}
+    dates = sorted({r["contribution_receipt_date"] for r in records})
     print(f"  Records:      {len(records):,}")
     print(f"  Committees:   {len(committees):,}")
     print(f"  States:       {len(states):,}")
+    if dates:
+        print(f"  Date span:    {dates[0]} – {dates[-1]} ({len(dates)} days)")
     print(f"  Total:        ${sum(amounts):,.2f}")
     if amounts:
         print(f"  Avg:          ${sum(amounts) / len(amounts):,.2f}")
+    _warn_date_concentration(records)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -260,6 +295,20 @@ def main(argv: list[str] | None = None) -> None:
         min_date, mode = _watermark_min_date(args.lookback_days)
         allow_empty = True
         log.info("Contribution sync: %s", mode)
+        if min_date is None:
+            min_date = _bootstrap_min_date(args.cycle)
+            log.info(
+                "Bootstrap fetch: min_date=%s (start of FEC %d cycle)",
+                min_date.isoformat(),
+                args.cycle,
+            )
+    elif min_date is None and not args.input_file:
+        min_date = _bootstrap_min_date(args.cycle)
+        log.info(
+            "Default min_date=%s (start of FEC %d cycle)",
+            min_date.isoformat(),
+            args.cycle,
+        )
 
     # ---- fetch or load from cache ----------------------------------------
     if args.input_file:

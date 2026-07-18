@@ -51,6 +51,14 @@ class FECClient:
 
         raise RuntimeError(f"FEC API rate-limited after {_MAX_RETRIES} retries")
 
+    @staticmethod
+    def _is_valid_contribution(rec: dict) -> bool:
+        return bool(
+            rec.get("contribution_receipt_date")
+            and rec.get("contribution_receipt_amount") is not None
+            and rec.get("sub_id")
+        )
+
     def fetch_contributions(
         self,
         *,
@@ -60,11 +68,18 @@ class FECClient:
         min_date: str | None = None,
         max_date: str | None = None,
         max_records: int = 10000,
+        sort: str = "-contribution_receipt_date",
     ) -> list[dict]:
-        """Paginate Schedule A individual contributions (keyset cursor)."""
+        """Paginate Schedule A individual contributions (keyset cursor).
+
+        Paginates until *max_records* rows pass basic validation (sub_id,
+        receipt date, amount). The FEC API returns many undated rows in
+        default index order; sorting by receipt date avoids a false 12/31 spike.
+        """
         params: dict = {
             "two_year_transaction_period": two_year_transaction_period,
             "is_individual": "true",
+            "sort": sort,
             "sort_hide_null": "true",
             "sort_null_only": "false",
             "per_page": _PER_PAGE,
@@ -79,13 +94,27 @@ class FECClient:
             params["max_date"] = max_date
 
         results: list[dict] = []
+        skipped = 0
         while len(results) < max_records:
             data = self._get("schedules/schedule_a/", params)
             page = data.get("results", [])
             if not page:
                 break
-            results.extend(page)
-            log.info("  contributions fetched: %d", len(results))
+            for rec in page:
+                if not self._is_valid_contribution(rec):
+                    skipped += 1
+                    continue
+                results.append(rec)
+                if len(results) >= max_records:
+                    break
+            log.info(
+                "  contributions fetched: %d valid (%d API rows skipped)",
+                len(results),
+                skipped,
+            )
+
+            if len(results) >= max_records:
+                break
 
             last = (data.get("pagination") or {}).get("last_indexes")
             if not last or not last.get("last_index"):

@@ -30,7 +30,7 @@ Usage: scripts/pipeline.sh [options]
 Options:
   --max-records N     Contribution fetch limit (default: 10000 or MAX_RECORDS)
   --lookback-days N   Overlap when using watermark (default: 7)
-  --full-refresh      Fetch from cycle start (no watermark); ignored in Cloud Run
+  --full-refresh      Skip watermark (rolling bootstrap window); ignored in Cloud Run
   --save-sample       Update data/samples/*.ndjson (local only)
   -h, --help          Show this help
 EOF

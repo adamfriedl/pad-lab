@@ -1,5 +1,9 @@
 # pad-lab
 
+**Dashboard:** [adamfriedl.github.io/pad-lab](https://adamfriedl.github.io/pad-lab/)
+
+[![Deploy Pages](https://github.com/adamfriedl/pad-lab/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/adamfriedl/pad-lab/actions/workflows/deploy-pages.yml)
+
 A hands-on data pipeline lab built on real [FEC campaign finance data](https://www.fec.gov/data/), mirroring [Community Tech Alliance's PAD stack](https://communitytechalliance.org/) — Python loaders fetching from a public API, landing in GCS, flowing through BigQuery raw → dbt staging → dbt marts.
 
 **What this is:** A learning project I built to understand PAD/PADdle architecture hands-on. Not production code, not affiliated with CTA.
@@ -41,7 +45,7 @@ FEC API (real political contribution data)
 Daily:  Cloud Scheduler → Cloud Run Job (pad-lab-pipeline SA)
             → loaders → GCS → BigQuery raw → dbt run/test → viz export
 
-Ship:   Push to main (loaders|dbt|Dockerfile|scripts|…)
+Ship:   Push to main (loaders/**, dbt/**, Dockerfile, scripts/**, requirements.txt, cloudbuild.yaml)
             → Cloud Build trigger → push pipeline:latest
 ```
 
@@ -140,7 +144,7 @@ Python scripts that fetch from the FEC API, normalize records, and load to BigQu
 ### Contributions (fact table)
 
 ```bash
-# Fetch 10000 contributions from the 2024 cycle (default)
+# Fetch contributions for the current FEC cycle (default cap: 10000)
 python -m loaders.load_contributions
 
 # Or cap lower for a quick test
@@ -177,8 +181,8 @@ python -m loaders.load_committees --cycle 2024 --max-records 200
 ### Local refresh
 
 ```bash
-./run_pipeline.sh              # incremental (watermark + 7d lookback)
-./run_pipeline.sh --full-refresh # re-fetch from cycle start (cap: max-records)
+./run_pipeline.sh                 # incremental (watermark + 7d lookback)
+./run_pipeline.sh --full-refresh  # skip watermark; rolling bootstrap window instead
 ```
 
 ### Scheduled / Cloud Run refresh
@@ -196,11 +200,11 @@ The job runs as `pad-lab-pipeline`; Scheduler triggers as `pad-lab-scheduler` (`
 
 ## IAM model
 
-| Identity               | Purpose                         | Privileges                                                                           |
-| ---------------------- | ------------------------------- | ------------------------------------------------------------------------------------ |
-| `pad-lab-pipeline`     | Cloud Run Job runtime           | BQ jobUser + dataEditor on lab datasets, GCS objectAdmin on landing, Secret accessor |
-| `pad-lab-scheduler`    | Cloud Scheduler OAuth trigger   | `roles/run.invoker` on the job                                                       |
-| Cloud Build default SA | Image build/push on code change | Artifact Registry writer                                                             |
+| Identity               | Purpose                         | Privileges                                                                                         |
+| ---------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `pad-lab-pipeline`     | Cloud Run Job runtime           | BQ jobUser + dataEditor on lab datasets; GCS objectAdmin on landing + viz buckets; Secret accessor |
+| `pad-lab-scheduler`    | Cloud Scheduler OAuth trigger   | `roles/run.invoker` on the job                                                                     |
+| Cloud Build default SA | Image build/push on code change | Artifact Registry writer                                                                           |
 
 ## Monitoring
 
@@ -249,10 +253,10 @@ Cloud Composer 3 keeps a managed Airflow environment running 24/7. A small env t
 
 ## Dashboard
 
-Static React site that reads **mart JSON only** (never raw). Live at **https://adamfriedl.github.io/pad-lab/** after Pages is enabled.
+Static React site that reads **mart JSON only** (never raw).
 
+- **Live:** [adamfriedl.github.io/pad-lab](https://adamfriedl.github.io/pad-lab/) — prod fetches JSON from the public GCS viz bucket (`VITE_DATA_BASE_URL` in [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml); override via repo Actions variable or `terraform output -raw viz_data_base_url`)
 - **Local/dev:** bundled `viz/public/data/` (refresh with `python scripts/export_viz_data.py`)
-- **Prod:** fetches from the public GCS viz bucket; set GitHub Actions variable `VITE_DATA_BASE_URL` to `terraform output -raw viz_data_base_url` (workflow has a project default)
 
 ```bash
 # Refresh snapshots from BigQuery marts (needs ADC); --upload also writes GCS
@@ -262,8 +266,7 @@ python scripts/export_viz_data.py --upload
 cd viz && npm install && npm run dev   # http://localhost:5173/pad-lab/
 ```
 
-Push to `main` (paths under `viz/`) triggers [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml).
-In the GitHub repo: **Settings → Pages → Source: GitHub Actions**.
+Push to `main` (paths under `viz/`) triggers the Pages workflow. In the GitHub repo: **Settings → Pages → Source: GitHub Actions**.
 
 ## License
 

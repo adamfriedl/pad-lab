@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import * as Plot from '@observablehq/plot';
 import type { CommitteeRow } from '../types';
+import { chartWidth, createHorizBarChart, whenFontsReady } from '../lib/chartLayout';
 import { formatUsd, partyColor, partyLabel } from '../lib/format';
 
 type Props = { data: CommitteeRow[] };
@@ -9,66 +9,49 @@ export function TopCommitteesChart({ data }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!ref.current) return;
-    ref.current.replaceChildren();
-    if (data.length === 0) {
-      ref.current.textContent = 'No committees in this filter.';
-      return;
-    }
+    const host = ref.current;
+    if (!host) return;
 
-    const rows = data.map((d) => ({
-      name: truncate(d.committee_name || d.committee_id, 42),
-      total_raised: Number(d.total_raised) || 0,
-      party: partyLabel(d.party_full, d.party),
-      fill: partyColor(partyLabel(d.party_full, d.party)),
-    }));
+    let chart: ReturnType<typeof createHorizBarChart> | undefined;
+    let generation = 0;
+    let cancelled = false;
 
-    const chart = Plot.plot({
-      width: Math.min(920, ref.current.clientWidth || 640),
-      height: Math.max(220, rows.length * 28 + 40),
-      marginLeft: 180,
-      marginRight: 48,
-      marginTop: 8,
-      marginBottom: 28,
-      style: {
-        background: 'transparent',
-        color: 'var(--ink-muted)',
-        fontFamily: 'var(--font-body)',
-        fontSize: '12px',
-      },
-      x: {
-        label: 'Total raised',
-        grid: true,
-        tickFormat: (d: number) =>
-          d >= 1_000_000 ? `${(d / 1_000_000).toFixed(1)}M` : `${Math.round(d / 1000)}k`,
-      },
-      y: { label: null },
-      marks: [
-        Plot.barX(rows, {
-          y: 'name',
-          x: 'total_raised',
-          fill: 'fill',
-          sort: { y: '-x' },
-          tip: {
-            format: {
-              x: (d: number) => formatUsd(d, true),
-            },
-          },
-        }),
-        Plot.text(rows, {
-          y: 'name',
-          x: 'total_raised',
-          text: (d: { total_raised: number }) => formatUsd(d.total_raised),
-          dx: 6,
-          textAnchor: 'start',
-          fill: 'var(--ink)',
-          fontSize: 11,
-        }),
-      ],
-    });
+    const render = async () => {
+      const gen = ++generation;
+      await whenFontsReady();
+      if (cancelled || gen !== generation || !host) return;
 
-    ref.current.append(chart);
-    return () => chart.remove();
+      chart?.remove();
+      host.replaceChildren();
+
+      if (data.length === 0) {
+        host.textContent = 'No committees in this filter.';
+        return;
+      }
+
+      const rows = data.map((d) => ({
+        y: truncate(d.committee_name || d.committee_id, 42),
+        x: Number(d.total_raised) || 0,
+        fill: partyColor(partyLabel(d.party_full, d.party)),
+      }));
+
+      chart = createHorizBarChart({
+        rows,
+        width: chartWidth(host.clientWidth),
+        tipX: (value) => formatUsd(value, true),
+      });
+
+      host.append(chart);
+    };
+
+    render();
+    const ro = new ResizeObserver(render);
+    ro.observe(host);
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      chart?.remove();
+    };
   }, [data]);
 
   return <div className='chart-host' ref={ref} />;

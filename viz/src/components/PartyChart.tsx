@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import * as Plot from '@observablehq/plot';
 import type { PartyPoint } from '../lib/aggregate';
-import { formatUsd, partyColor } from '../lib/format';
+import { chartWidth, createHorizBarChart, whenFontsReady } from '../lib/chartLayout';
+import { partyColor } from '../lib/format';
 
 type Props = { data: PartyPoint[] };
 
@@ -9,60 +9,49 @@ export function PartyChart({ data }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!ref.current) return;
-    ref.current.replaceChildren();
-    if (data.length === 0) {
-      ref.current.textContent = 'No party breakdown.';
-      return;
-    }
+    const host = ref.current;
+    if (!host) return;
 
-    const rows = data.map((d) => ({
-      ...d,
-      fill: partyColor(d.party),
-    }));
+    let chart: ReturnType<typeof createHorizBarChart> | undefined;
+    let generation = 0;
+    let cancelled = false;
 
-    const chart = Plot.plot({
-      width: Math.min(480, ref.current.clientWidth || 360),
-      height: Math.max(200, rows.length * 36 + 40),
-      marginLeft: 140,
-      marginRight: 56,
-      marginTop: 8,
-      marginBottom: 28,
-      style: {
-        background: 'transparent',
-        color: 'var(--ink-muted)',
-        fontFamily: 'var(--font-body)',
-        fontSize: '12px',
-      },
-      x: {
-        label: 'Total raised',
-        grid: true,
-        tickFormat: (d: number) =>
-          d >= 1_000_000 ? `${(d / 1_000_000).toFixed(1)}M` : `${Math.round(d / 1000)}k`,
-      },
-      y: { label: null },
-      marks: [
-        Plot.barX(rows, {
-          y: 'party',
-          x: 'total_raised',
-          fill: 'fill',
-          sort: { y: '-x' },
-          tip: true,
-        }),
-        Plot.text(rows, {
-          y: 'party',
-          x: 'total_raised',
-          text: (d: PartyPoint) => formatUsd(d.total_raised),
-          dx: 6,
-          textAnchor: 'start',
-          fill: 'var(--ink)',
-          fontSize: 11,
-        }),
-      ],
-    });
+    const render = async () => {
+      const gen = ++generation;
+      await whenFontsReady();
+      if (cancelled || gen !== generation || !host) return;
 
-    ref.current.append(chart);
-    return () => chart.remove();
+      chart?.remove();
+      host.replaceChildren();
+
+      if (data.length === 0) {
+        host.textContent = 'No party breakdown.';
+        return;
+      }
+
+      const rows = data.map((d) => ({
+        y: d.party,
+        x: d.total_raised,
+        fill: partyColor(d.party),
+      }));
+
+      chart = createHorizBarChart({
+        rows,
+        width: chartWidth(host.clientWidth, 480),
+        rowHeight: 36,
+      });
+
+      host.append(chart);
+    };
+
+    render();
+    const ro = new ResizeObserver(render);
+    ro.observe(host);
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      chart?.remove();
+    };
   }, [data]);
 
   return <div className='chart-host' ref={ref} />;

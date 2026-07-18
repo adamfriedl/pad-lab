@@ -19,7 +19,7 @@ echo "==> Cloud Build: push ${IMAGE} (build only, no job run)"
 gcloud builds submit "${ROOT}" \
   --project="$PROJECT" \
   --config="${ROOT}/cloudbuild.yaml" \
-  --substitutions="_REGION=${REGION},_IMAGE=${IMAGE},_RUN_JOB=false" \
+  --substitutions="_REGION=${REGION},_IMAGE=${IMAGE},_CACHE=${REGION}-docker.pkg.dev/${PROJECT}/pad-lab/pipeline:buildcache,_RUN_JOB=false" \
   --timeout=1800s \
   --quiet
 

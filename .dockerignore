@@ -1,0 +1,15 @@
+# Cloud Build / Docker ignore — keep the build context small.
+.venv/
+.git/
+.env
+infra/
+data/
+*.md
+.cursor/
+**/__pycache__/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/profiles.yml
+.terraform/
+*.tfstate*

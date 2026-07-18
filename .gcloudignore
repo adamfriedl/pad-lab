@@ -1,0 +1,14 @@
+.venv/
+.git/
+.env
+infra/.terraform/
+**/.terraform/
+*.tfstate*
+data/
+.cursor/
+**/__pycache__/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/profiles.yml
+*.md

@@ -83,7 +83,10 @@ Look for `This query will process X bytes` in each output.
 Fetch a new batch of contributions and run dbt incrementally:
 
 ```bash
-# Fetch 200 more records from a different state
+# Watermark sync — only pulls since last raw max date (minus 7d overlap)
+python -m loaders.load_contributions --since-watermark --max-records 200
+
+# Or an explicit backfill window / state filter:
 python -m loaders.load_contributions --max-records 200 --state CA
 
 # Run dbt (incremental — only recalculates affected keys)
@@ -101,7 +104,7 @@ FROM \`${PROJECT}.pad_lab_mart.daily_contributions\`
 GROUP BY 1 ORDER BY total DESC LIMIT 10"
 ```
 
-**Takeaway:** "The loader appends to raw. dbt's incremental strategy only recalculates date/committee keys that received new data — not a full refresh every cycle."
+**Takeaway:** "The loader appends to raw using a high-water mark plus overlap for late filings. dbt's incremental strategy only recalculates date/committee keys that received new data — not a full refresh every cycle."
 
 ---
 
@@ -152,21 +155,65 @@ python -m loaders.load_committees --from-contributions
 
 ## 6. Observability sketch (5 min)
 
-Alerts you'd want on this pipeline in production:
+**Pipeline alerts** (Terraform + Cloud Monitoring, when `ALERT_EMAIL` is set):
 
-| Signal        | Alert                       | First check                                |
-| ------------- | --------------------------- | ------------------------------------------ |
-| Freshness     | Raw table stale > 6h        | Airbyte/loader job status                  |
-| Volume        | Contributions drop >30% DoD | Source API health, date filter drift       |
-| Join coverage | >5% orphan committee_ids    | Dimension sync timing                      |
-| Cost          | Bytes scanned spike >2x     | Query history, missing partition filter    |
-| Job failure   | dbt run/test failed         | Recent model change, upstream schema drift |
+| Signal      | Alert                       | First check                             |
+| ----------- | --------------------------- | --------------------------------------- |
+| Freshness   | No successful job > 24h     | Cloud Scheduler → Cloud Run Job history |
+| Job failure | Cloud Run Job result=failed | Job logs, FEC API, dbt test output      |
+| Cost (opt.) | Project budget thresholds   | Billing → Budgets (pad-lab filter)      |
+
+**Data quality** (dbt tests — run every pipeline; failure fails the job):
+
+| Signal        | Test                                 | First check                 |
+| ------------- | ------------------------------------ | --------------------------- |
+| Join coverage | `assert_orphan_committee_ratio`      | Reload committees dimension |
+| Volume floor  | `assert_minimum_staging_volume`      | Loader filters, FEC API     |
+| Mart sanity   | `assert_positive_contribution_count` | Upstream staging dedupe     |
+
+Run tests manually:
+
+```bash
+(cd dbt && dbt test)
+```
+
+Manual raw freshness SQL:
+
+```bash
+./scripts/check_freshness.sh
+```
 
 **Takeaway:** "Every alert links to what to check first. On-call shouldn't be grepping Slack at 2am."
 
 ---
 
-## 7. Cleanup
+## 7. Terraform + scheduled run (10 min)
+
+Inspect what Terraform manages:
+
+```bash
+cd infra
+terraform plan
+terraform output
+```
+
+Trigger the Cloud Run Job once (same path as the daily schedule):
+
+```bash
+./scripts/run_job.sh
+```
+
+Rebuild the image after loader/dbt changes:
+
+```bash
+./scripts/build_image.sh
+```
+
+**Takeaway:** "Infra is declarative (datasets, IAM, schedule, alerts). The container is the pipeline; Scheduler only has permission to start it."
+
+---
+
+## 8. Cleanup
 
 ```bash
 ./teardown.sh

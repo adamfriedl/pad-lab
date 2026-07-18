@@ -197,19 +197,20 @@ terraform plan
 terraform output
 ```
 
-Trigger the cloud pipeline once (same path as the daily schedule — rebuilds image, then runs):
+Trigger the cloud pipeline once (same path as the daily schedule — execute job):
 
 ```bash
 ./scripts/run_job.sh
 ```
 
-Build the image only (no ingest/dbt):
+Rebuild the image from your local tree (or rely on the Cloud Build trigger after pushing pipeline paths to `main`):
 
 ```bash
 ./scripts/build_image.sh
+# or: ./scripts/run_job.sh --build
 ```
 
-**Takeaway:** "Infra is declarative (datasets, IAM, schedule, alerts). Cloud Build rebuilds the container from source each run (cached layers in Artifact Registry), then the job runs ingest + dbt."
+**Takeaway:** "Infra is declarative (datasets, IAM, schedule, alerts). Cloud Build ships a new container when pipeline code changes; the scheduled job runs ingest + dbt against `:latest`."
 
 ---
 
@@ -219,6 +220,7 @@ Export marts to the static site and open the contribution desk:
 
 ```bash
 python scripts/export_viz_data.py
+python scripts/export_viz_data.py --upload   # also refresh GCS for Pages
 
 cd viz
 npm install
@@ -231,6 +233,7 @@ Confirm KPIs, the time series, top committees, and party breakdown all reflect
 
 After a push to `main`, the same build deploys to
 https://adamfriedl.github.io/pad-lab/ (repo Settings → Pages → GitHub Actions).
+Prod fetches mart JSON from the public GCS viz bucket (`VITE_DATA_BASE_URL`).
 
 **Takeaway:** "Dashboards consume curated marts. Export is the batch twin of a BI extract; the UI should never query raw."
 

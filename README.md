@@ -15,16 +15,7 @@ FEC API (real political contribution data)
   → pad_lab_raw (BQ)      # partitioned, append-only
   → pad_lab_staging (dbt) # clean, dedupe, type coercion
   → pad_lab_mart (dbt)    # incremental aggregates, joined dimensions
-```
-
-Scheduled path (professional twin of `./run_pipeline.sh`):
-
-```
-Cloud Scheduler (daily cron)
-  → Cloud Build (rebuild pipeline image, layer cache from Artifact Registry)
-  → Cloud Run Job (pad-lab-pipeline SA)
-      → loaders → GCS → BigQuery raw → dbt run/test
-  → Cloud Monitoring alerts on failure / missed success
+  → GCS viz bucket JSON   # mart snapshots for the static dashboard
 ```
 
 | Layer     | Resource                               | Production equivalent         |
@@ -37,11 +28,22 @@ Cloud Scheduler (daily cron)
 | Staging   | `pad_lab_staging.stg_committees`       | dbt staging models            |
 | Mart      | `pad_lab_mart.daily_contributions`     | dbt marts → SketchPAD         |
 | Mart      | `pad_lab_mart.committee_summary`       | dbt marts → SketchPAD         |
-| Dashboard | `viz/` → GitHub Pages                  | SketchPAD / Looker (lab twin) |
+| Dashboard | `viz/` → GitHub Pages + GCS JSON       | SketchPAD / Looker (lab twin) |
 | Infra     | Terraform (`infra/`)                   | IaC for datasets, IAM, jobs   |
 | Schedule  | Cloud Scheduler → Cloud Run Job        | Airflow / Composer DAGs       |
+| Image     | Cloud Build trigger on `main`          | CI container build            |
 | Secrets   | Secret Manager (`pad-lab-fec-api-key`) | Vault / SM                    |
 | Monitor   | Cloud Monitoring alert policies        | PADLock / on-call             |
+
+**Run vs ship:**
+
+```
+Daily:  Cloud Scheduler → Cloud Run Job (pad-lab-pipeline SA)
+            → loaders → GCS → BigQuery raw → dbt run/test → viz export
+
+Ship:   Push to main (loaders|dbt|Dockerfile|scripts|…)
+            → Cloud Build trigger → push pipeline:latest
+```
 
 ## Data
 
@@ -59,6 +61,7 @@ No PII concerns — all FEC data is [public record](https://www.fec.gov/introduc
 - Active GCP project with billing enabled
 - Python 3.11+
 - FEC API key (free — [register here](https://api.data.gov/signup/))
+- One-time: connect this GitHub repo in the [Cloud Build console](https://console.cloud.google.com/cloud-build/triggers?region=us-central1) with region **us-central1** (same as `var.region`)
 
 ## Quick start
 
@@ -77,10 +80,9 @@ open EXERCISES.md
 `./setup.sh` will:
 
 1. Create `gs://pad-lab-{project}-tfstate` (remote Terraform state)
-2. `terraform apply` — datasets, landing bucket, dual service accounts, Secret Manager, Artifact Registry, Cloud Run Job, Scheduler, alerts
+2. Apply foundation (APIs, Artifact Registry, secret shell), add FEC secret version, build image, then full `terraform apply` (datasets, dual SAs, Cloud Run Job, Scheduler, image trigger, alerts)
 3. Install local Python/dbt deps and write `dbt/profiles.yml` (laptop OAuth)
-4. Build/push `{region}-docker.pkg.dev/{project}/pad-lab/pipeline:latest`
-5. Run `./run_pipeline.sh --save-sample` once locally
+4. Run `./run_pipeline.sh --save-sample` once locally
 
 Options: `--skip-image`, `--skip-pipeline`.
 
@@ -93,7 +95,7 @@ pad-lab/
 ├── requirements.txt
 ├── Dockerfile                  # Cloud Run Job image
 ├── setup.sh                    # Terraform apply + local deps + image
-├── run_pipeline.sh             # Local: FEC fetch → BQ load → dbt
+├── run_pipeline.sh             # Local: FEC fetch → BQ load → dbt → viz export
 ├── teardown.sh                 # terraform destroy
 ├── .env.example
 ├── infra/                      # Terraform (GCS backend)
@@ -103,17 +105,20 @@ pad-lab/
 │   ├── secrets.tf
 │   ├── artifact_registry.tf
 │   ├── cloud_run.tf
+│   ├── cloudbuild_trigger.tf
 │   ├── monitoring.tf
+│   ├── billing.tf
 │   └── terraform.tfvars.example
 ├── scripts/
 │   ├── bootstrap_tfstate.sh
-│   ├── build_image.sh
-│   ├── run_job.sh              # Manually execute Cloud Run Job
+│   ├── build_image.sh          # Cloud Build: push image only
+│   ├── run_job.sh              # Execute Cloud Run Job (--build to rebuild first)
 │   ├── check_freshness.sh      # SQL freshness check
-│   ├── export_viz_data.py      # Mart → viz/public/data JSON
-│   └── pipeline_entrypoint.sh  # Container entrypoint
+│   ├── export_viz_data.py      # Mart → viz/public/data (+ optional GCS)
+│   └── pipeline.sh             # Shared local/cloud pipeline steps
 ├── loaders/
 │   ├── fec.py
+│   ├── fec_sync.py
 │   ├── load_contributions.py
 │   └── load_committees.py
 ├── dbt/
@@ -124,7 +129,7 @@ pad-lab/
 │   ├── tests/
 │   └── macros/
 └── viz/                        # Static React dashboard (GitHub Pages)
-    ├── public/data/            # Exported mart JSON snapshots
+    ├── public/data/            # Local/dev mart JSON snapshots
     └── src/
 ```
 
@@ -179,22 +184,23 @@ python -m loaders.load_committees --cycle 2024 --max-records 200
 ### Scheduled / Cloud Run refresh
 
 ```bash
-./scripts/run_job.sh        # Cloud Build: rebuild image (cached) + execute job
-./scripts/build_image.sh    # rebuild/push image only (no ingest/dbt)
+./scripts/run_job.sh           # execute Cloud Run Job (uses :latest image)
+./scripts/run_job.sh --build   # rebuild image from local tree, then execute
+./scripts/build_image.sh       # rebuild/push image only
 ./scripts/check_freshness.sh
 ```
 
-Daily schedule defaults to `0 14 * * *` UTC (Cloud Scheduler → **Cloud Build** → Cloud Run Job). Each run rebuilds the pipeline image with Docker layer cache from Artifact Registry, then executes ingest + dbt. Manual `run_job.sh` uses your **local** tree; the schedule pulls **`main`** from GitHub (`infra` vars `pipeline_github_*`).
+Daily schedule defaults to `0 14 * * *` UTC (**Cloud Scheduler → Cloud Run Job**). Image rebuilds happen separately: push to `main` under pipeline paths triggers Cloud Build (`infra/cloudbuild_trigger.tf`).
 
-The job runs as `pad-lab-pipeline`; Scheduler triggers as `pad-lab-scheduler` (`roles/cloudbuild.builds.editor`).
+The job runs as `pad-lab-pipeline`; Scheduler triggers as `pad-lab-scheduler` (`roles/run.invoker` on the job).
 
 ## IAM model
 
-| Identity            | Purpose                            | Privileges                                                                           |
-| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ |
-| `pad-lab-pipeline`  | Cloud Run Job runtime              | BQ jobUser + dataEditor on lab datasets, GCS objectAdmin on landing, Secret accessor |
-| `pad-lab-scheduler` | Cloud Scheduler OIDC/OAuth trigger | `roles/cloudbuild.builds.editor` (build + run via Cloud Build) |
-| Cloud Build default SA | Image build + `gcloud run jobs execute` | Artifact Registry writer, `roles/run.developer` on the job |
+| Identity               | Purpose                         | Privileges                                                                           |
+| ---------------------- | ------------------------------- | ------------------------------------------------------------------------------------ |
+| `pad-lab-pipeline`     | Cloud Run Job runtime           | BQ jobUser + dataEditor on lab datasets, GCS objectAdmin on landing, Secret accessor |
+| `pad-lab-scheduler`    | Cloud Scheduler OAuth trigger   | `roles/run.invoker` on the job                                                       |
+| Cloud Build default SA | Image build/push on code change | Artifact Registry writer                                                             |
 
 ## Monitoring
 
@@ -231,6 +237,7 @@ Cloud Composer 3 keeps a managed Airflow environment running 24/7. A small env t
 - **Two loading patterns** — GCS landing for fact data, direct load for dimensions.
 - **Dedup in staging** — raw is append-only; staging handles duplicates via latest-wins.
 - **Split runtime vs trigger SAs** — least privilege for data work vs job invocation.
+- **Ship image on code change, not on cron** — daily job runs data; Cloud Build trigger ships `:latest` when pipeline paths change.
 - **Sample data cached** in `data/samples/` for offline use without hitting the API.
 
 ## Cleanup
@@ -240,26 +247,17 @@ Cloud Composer 3 keeps a managed Airflow environment running 24/7. A small env t
 ./teardown.sh --delete-tfstate  # also delete the state bucket
 ```
 
-## Stack mapping
-
-| This lab                          | CTA production                  |
-| --------------------------------- | ------------------------------- |
-| Python loaders + FEC API          | Airbyte connectors (PADdle)     |
-| GCS landing zone                  | Airbyte → GCS sync              |
-| dbt views + incremental tables    | dbt staging/mart models         |
-| Cloud Scheduler + Cloud Run Job   | Scheduled Airflow/Composer jobs |
-| Static dashboard (`viz/` → Pages) | SketchPAD / Looker dashboards   |
-| Cloud Monitoring alerts           | PADLock monitoring              |
-| Terraform (`infra/`)              | Platform IaC                    |
-
 ## Dashboard
 
-Static React site that reads committed JSON exported from `pad_lab_mart` only
-(never raw). Live at **https://adamfriedl.github.io/pad-lab/** after Pages is enabled.
+Static React site that reads **mart JSON only** (never raw). Live at **https://adamfriedl.github.io/pad-lab/** after Pages is enabled.
+
+- **Local/dev:** bundled `viz/public/data/` (refresh with `python scripts/export_viz_data.py`)
+- **Prod:** fetches from the public GCS viz bucket; set GitHub Actions variable `VITE_DATA_BASE_URL` to `terraform output -raw viz_data_base_url` (workflow has a project default)
 
 ```bash
-# Refresh snapshots from BigQuery marts (needs ADC)
+# Refresh snapshots from BigQuery marts (needs ADC); --upload also writes GCS
 python scripts/export_viz_data.py
+python scripts/export_viz_data.py --upload
 
 cd viz && npm install && npm run dev   # http://localhost:5173/pad-lab/
 ```

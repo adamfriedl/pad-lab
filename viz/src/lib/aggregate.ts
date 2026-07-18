@@ -1,11 +1,5 @@
-import type { CommitteeRow, DailyRow } from '../types';
-import { partyLabel } from './format';
-
-export type Filters = {
-  party: string;
-  dateFrom: string;
-  dateTo: string;
-};
+import type { CommitteeRow } from '../types';
+import { partyColor, partyLabel } from './format';
 
 export function uniqueParties(rows: CommitteeRow[]): string[] {
   const set = new Set<string>();
@@ -15,37 +9,9 @@ export function uniqueParties(rows: CommitteeRow[]): string[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-export function filterDaily(rows: DailyRow[], f: Filters): DailyRow[] {
-  return rows.filter((r) => {
-    if (f.party !== 'all' && partyLabel(r.party_full, r.party) !== f.party) return false;
-    if (f.dateFrom && r.contribution_receipt_date < f.dateFrom) return false;
-    if (f.dateTo && r.contribution_receipt_date > f.dateTo) return false;
-    return true;
-  });
-}
-
-export function filterCommittees(rows: CommitteeRow[], f: Filters): CommitteeRow[] {
-  return rows.filter((r) => {
-    if (f.party !== 'all' && partyLabel(r.party_full, r.party) !== f.party) return false;
-    return true;
-  });
-}
-
-export type DayPoint = { date: string; total_amount: number; contribution_count: number };
-
-export function rollupDaily(rows: DailyRow[]): DayPoint[] {
-  const map = new Map<string, DayPoint>();
-  for (const r of rows) {
-    const cur = map.get(r.contribution_receipt_date) || {
-      date: r.contribution_receipt_date,
-      total_amount: 0,
-      contribution_count: 0,
-    };
-    cur.total_amount += Number(r.total_amount) || 0;
-    cur.contribution_count += Number(r.contribution_count) || 0;
-    map.set(r.contribution_receipt_date, cur);
-  }
-  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+export function filterCommittees(rows: CommitteeRow[], party: string): CommitteeRow[] {
+  if (party === 'all') return rows;
+  return rows.filter((r) => partyLabel(r.party_full, r.party) === party);
 }
 
 export type PartyPoint = { party: string; total_raised: number; committees: number };
@@ -66,4 +32,59 @@ export function topCommittees(rows: CommitteeRow[], n = 12): CommitteeRow[] {
   return [...rows]
     .sort((a, b) => (Number(b.total_raised) || 0) - (Number(a.total_raised) || 0))
     .slice(0, n);
+}
+
+export type CommitteeScatterPoint = {
+  committee_id: string;
+  name: string;
+  receipts: number;
+  raised: number;
+  avg: number;
+  min: number;
+  max: number;
+  party: string;
+  fill: string;
+  fillOpacity: number;
+  r: number;
+  isTop: boolean;
+};
+
+/** Map committee_summary rows to log-scatter points (receipts vs raised). */
+export function prepareCommitteeScatter(
+  rows: CommitteeRow[],
+  topN = 12,
+): CommitteeScatterPoint[] {
+  const ranked = [...rows].sort(
+    (a, b) => (Number(b.total_raised) || 0) - (Number(a.total_raised) || 0),
+  );
+  const topIds = new Set(ranked.slice(0, topN).map((r) => r.committee_id));
+
+  return rows
+    .map((row) => {
+      const receipts = Number(row.total_contributions) || 0;
+      const raised = Number(row.total_raised) || 0;
+      const avg = Number(row.avg_contribution) || 0;
+      if (receipts < 1 || raised <= 0) return null;
+
+      const isTop = topIds.has(row.committee_id);
+      const isTiny = receipts <= 1 && raised < 500;
+      const fillOpacity = isTop ? 0.92 : isTiny ? 0.14 : 0.38;
+      const r = Math.min(16, Math.max(3.5, 3 + Math.sqrt(Math.max(avg, 1)) / 6));
+
+      return {
+        committee_id: row.committee_id,
+        name: row.committee_name || row.committee_id,
+        receipts,
+        raised,
+        avg,
+        min: Number(row.min_contribution) || 0,
+        max: Number(row.max_contribution) || 0,
+        party: partyLabel(row.party_full, row.party),
+        fill: partyColor(partyLabel(row.party_full, row.party)),
+        fillOpacity,
+        r: isTop ? r * 1.15 : r,
+        isTop,
+      };
+    })
+    .filter((p): p is CommitteeScatterPoint => p !== null);
 }

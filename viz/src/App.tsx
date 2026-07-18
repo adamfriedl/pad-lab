@@ -1,56 +1,35 @@
 import { useMemo, useState } from 'react';
+import { CommitteeScatterChart } from './components/CommitteeScatterChart';
 import { Filters } from './components/Filters';
 import { LoadingScreen } from './components/LoadingScreen';
 import { KpiStrip } from './components/KpiStrip';
 import { PartyChart } from './components/PartyChart';
-import { TimeSeriesChart } from './components/TimeSeriesChart';
 import { TopCommitteesChart } from './components/TopCommitteesChart';
 import { useVizData } from './hooks/useVizData';
 import {
   filterCommittees,
-  filterDaily,
-  rollupDaily,
+  prepareCommitteeScatter,
   rollupParty,
   topCommittees,
   uniqueParties,
-  type Filters as FilterState,
 } from './lib/aggregate';
-import { formatDate, todayIso } from './lib/format';
+import { formatDate } from './lib/format';
 
 export default function App() {
   const { data, error, loading } = useVizData();
   const [party, setParty] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   const parties = useMemo(() => (data ? uniqueParties(data.committees) : []), [data]);
 
-  const dateBounds = useMemo(() => {
-    if (!data) return { min: '', max: '' };
-    const today = todayIso();
-    const dates = data.daily
-      .map((r) => r.contribution_receipt_date)
-      .filter((d) => d && d <= today)
-      .sort();
-    return { min: dates[0] || '', max: dates[dates.length - 1] || today };
-  }, [data]);
-
-  const filters: FilterState = {
-    party,
-    dateFrom: dateFrom || dateBounds.min,
-    dateTo: dateTo || dateBounds.max,
-  };
-
-  const filteredDaily = useMemo(
-    () => (data ? filterDaily(data.daily, filters) : []),
-    [data, party, dateFrom, dateTo, dateBounds.min, dateBounds.max],
-  );
   const filteredCommittees = useMemo(
-    () => (data ? filterCommittees(data.committees, filters) : []),
+    () => (data ? filterCommittees(data.committees, party) : []),
     [data, party],
   );
 
-  const series = useMemo(() => rollupDaily(filteredDaily), [filteredDaily]);
+  const scatterPoints = useMemo(
+    () => prepareCommitteeScatter(filteredCommittees),
+    [filteredCommittees],
+  );
   const partyPoints = useMemo(() => rollupParty(filteredCommittees), [filteredCommittees]);
   const leaders = useMemo(() => topCommittees(filteredCommittees, 12), [filteredCommittees]);
 
@@ -61,8 +40,8 @@ export default function App() {
       0,
     );
     const span =
-      series.length > 0
-        ? `${formatDate(series[0].date)} – ${formatDate(series[series.length - 1].date)}`
+      data?.meta.date_min && data?.meta.date_max
+        ? `${formatDate(data.meta.date_min)} – ${formatDate(data.meta.date_max)}`
         : '—';
     return {
       totalRaised,
@@ -70,7 +49,7 @@ export default function App() {
       committees: filteredCommittees.length,
       dateRange: span,
     };
-  }, [filteredCommittees, series]);
+  }, [filteredCommittees, data]);
 
   if (loading) {
     return <LoadingScreen />;
@@ -101,32 +80,23 @@ export default function App() {
         </p>
         <p className='meta-line'>
           Snapshot {formatDate(data.meta.exported_at.slice(0, 10))} · {data.meta.dataset} ·{' '}
-          {data.meta.daily_contributions_rows.toLocaleString()} daily rows
+          {data.meta.committee_summary_rows.toLocaleString()} committees
         </p>
       </header>
 
-      <Filters
-        parties={parties}
-        party={party}
-        dateFrom={dateFrom || dateBounds.min}
-        dateTo={dateTo || dateBounds.max}
-        dateMin={dateBounds.min}
-        dateMax={dateBounds.max}
-        onParty={setParty}
-        onDateFrom={setDateFrom}
-        onDateTo={setDateTo}
-      />
+      <Filters parties={parties} party={party} onParty={setParty} />
 
       <KpiStrip {...kpis} />
 
       <section className='panel reveal' style={{ animationDelay: '160ms' }}>
         <div className='panel-head'>
-          <h2>Raised over time</h2>
+          <h2>Receipts vs raised</h2>
           <p>
-            Daily totals from <code>daily_contributions</code>
+            Each point is a committee in <code>committee_summary</code> — volume vs dollars (log
+            scales)
           </p>
         </div>
-        <TimeSeriesChart data={series} />
+        <CommitteeScatterChart data={scatterPoints} />
       </section>
 
       <div className='split'>

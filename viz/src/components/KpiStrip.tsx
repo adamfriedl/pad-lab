@@ -14,7 +14,7 @@ export function KpiStrip({ totalRaised, totalContributions, committees, dateRang
     { label: 'Total raised', value: formatUsd(totalRaised), hint: 'Sum of committee totals' },
     { label: 'Contributions', value: formatInt(totalContributions), hint: 'Receipts in sample' },
     { label: 'Committees', value: formatInt(committees), hint: 'In current filter' },
-    { label: 'Date span', value: dateRange, hint: 'Daily mart coverage' },
+    { label: 'Date span', value: dateRange, hint: 'Receipt dates in this export' },
   ];
 
   return (

@@ -32,27 +32,60 @@ function marginRightForValues(values: number[]): number {
 
 export type DailyScale = {
   domain: [number, number];
+  inScale: Array<{ date: string; total_amount: number }>;
   outliers: Array<{ date: string; total_amount: number }>;
 };
 
-/** Zoom the y-axis when one day dominates so daily variation stays visible. */
+export function formatCompactUsd(d: number): string {
+  const n = Math.abs(d);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000) return `${Math.round(n / 1000)}k`;
+  return String(Math.round(n));
+}
+
+/** Left margin for y ticks plus the vertical axis label. */
+export function marginLeftForTimeSeriesY(domain: [number, number]): number {
+  const [lo, hi] = domain;
+  const samples = [lo, 0, hi * 0.25, hi * 0.5, hi * 0.75, hi].map(formatCompactUsd);
+  return marginLeftForLabels(samples) + 10;
+}
+
+/**
+ * Clip days that dominate the scale (4× next-largest) so smaller days stay visible.
+ * Repeats until no single day swamps the rest — e.g. Jun 30 then Jul 1 in FEC samples.
+ */
 export function dailyYScale(points: Array<{ date: string; total_amount: number }>): DailyScale {
-  const positives = points.map((p) => p.total_amount).filter((v) => v > 0);
-  if (positives.length === 0) return { domain: [0, 1], outliers: [] };
+  const outliers: Array<{ date: string; total_amount: number }> = [];
+  let inScale = [...points];
 
-  const sorted = [...positives].sort((a, b) => a - b);
-  const max = sorted[sorted.length - 1]!;
-  const secondMax = sorted.length > 1 ? sorted[sorted.length - 2]! : max;
+  while (inScale.length > 1) {
+    const positives = inScale.map((p) => p.total_amount).filter((v) => v > 0);
+    if (positives.length <= 1) break;
 
-  if (sorted.length > 1 && max > secondMax * 4) {
-    const domainMax = secondMax * 1.15;
-    return {
-      domain: [0, domainMax],
-      outliers: points.filter((p) => p.total_amount > domainMax),
-    };
+    const sorted = [...positives].sort((a, b) => a - b);
+    const max = sorted[sorted.length - 1]!;
+    const secondMax = sorted[sorted.length - 2]!;
+    if (max <= secondMax * 4) break;
+
+    const peak = inScale.reduce((a, b) => (a.total_amount >= b.total_amount ? a : b));
+    outliers.push(peak);
+    inScale = inScale.filter((p) => p.date !== peak.date);
   }
 
-  return { domain: [0, max * 1.05], outliers: [] };
+  if (inScale.length === 0) {
+    return { domain: [0, 1], inScale: [], outliers };
+  }
+
+  const amounts = inScale.map((p) => p.total_amount);
+  const yMin = Math.min(0, ...amounts);
+  const yMax = Math.max(...amounts);
+  const pad = yMax > 0 ? Math.max(yMax * 0.08, 50) : 1;
+
+  return {
+    domain: [yMin < 0 ? yMin - pad : 0, yMax > 0 ? yMax + pad : 1],
+    inScale,
+    outliers,
+  };
 }
 
 export function chartWidth(containerWidth: number, max = 920): number {

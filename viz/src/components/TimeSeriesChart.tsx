@@ -1,7 +1,13 @@
 import { useEffect, useRef } from 'react';
 import * as Plot from '@observablehq/plot';
 import type { DayPoint } from '../lib/aggregate';
-import { dailyYScale } from '../lib/chartLayout';
+import {
+  chartWidth,
+  dailyYScale,
+  formatCompactUsd,
+  marginLeftForTimeSeriesY,
+  whenFontsReady,
+} from '../lib/chartLayout';
 import { formatDate, formatUsd } from '../lib/format';
 
 type Props = { data: DayPoint[] };
@@ -15,107 +21,129 @@ export function TimeSeriesChart({ data }: Props) {
     const note = noteRef.current;
     if (!host) return;
 
-    host.replaceChildren();
-    if (note) note.textContent = '';
+    let chart: ReturnType<typeof Plot.plot> | undefined;
+    let generation = 0;
+    let cancelled = false;
 
-    if (data.length === 0) {
-      host.textContent = 'No rows in this filter window.';
-      return;
-    }
+    const render = async () => {
+      const gen = ++generation;
+      await whenFontsReady();
+      if (cancelled || gen !== generation || !host) return;
 
-    const plotted = data.map((d) => ({
-      ...d,
-      date: new Date(d.date + 'T00:00:00'),
-    }));
+      chart?.remove();
+      host.replaceChildren();
+      if (note) note.textContent = '';
 
-    const { domain, outliers } = dailyYScale(data);
-    const inScale = plotted.filter((d) => d.total_amount <= domain[1]);
-    const offScale = plotted
-      .filter((d) => d.total_amount > domain[1])
-      .map((d) => ({ ...d, plotY: domain[1] }));
+      if (data.length === 0) {
+        host.textContent = 'No rows in this filter window.';
+        return;
+      }
 
-    const chart = Plot.plot({
-      width: Math.min(920, host.clientWidth || 640),
-      height: 280,
-      marginLeft: 56,
-      marginBottom: 36,
-      marginTop: 16,
-      marginRight: 16,
-      style: {
-        background: 'transparent',
-        color: 'var(--ink-muted)',
-        fontFamily: 'var(--font-body)',
-        fontSize: '12px',
-      },
-      x: { label: null, ticks: 6 },
-      y: {
-        label: 'Raised ($)',
-        grid: true,
-        domain,
-        nice: true,
-        tickFormat: (d: number) =>
-          d >= 1_000_000
-            ? `${(d / 1_000_000).toFixed(1)}M`
-            : d >= 1000
-              ? `${Math.round(d / 1000)}k`
-              : String(d),
-      },
-      marks: [
-        Plot.areaY(inScale, {
-          x: 'date',
-          y: 'total_amount',
-          fill: 'var(--accent)',
-          fillOpacity: 0.14,
-          curve: 'monotone-x',
-        }),
-        Plot.lineY(inScale, {
-          x: 'date',
-          y: 'total_amount',
-          stroke: 'var(--accent)',
-          strokeWidth: 2.25,
-          curve: 'monotone-x',
-        }),
-        Plot.dot(inScale, {
-          x: 'date',
-          y: 'total_amount',
-          fill: 'var(--accent)',
-          r: 2.5,
-          tip: {
-            format: {
-              x: (d: Date) => d.toLocaleDateString(),
-              y: (d: number) => formatUsd(d, true),
+      const { domain, inScale, outliers } = dailyYScale(data);
+      const plotted = inScale.map((d) => ({
+        ...d,
+        date: new Date(d.date + 'T00:00:00'),
+      }));
+      const offScale = outliers.map((d) => ({
+        ...d,
+        date: new Date(d.date + 'T00:00:00'),
+        plotY: domain[1],
+      }));
+
+      const marginLeft = marginLeftForTimeSeriesY(domain);
+
+      chart = Plot.plot({
+        width: chartWidth(host.clientWidth),
+        height: 280,
+        marginLeft,
+        marginBottom: 36,
+        marginTop: 16,
+        marginRight: 16,
+        style: {
+          background: 'transparent',
+          color: 'var(--ink-muted)',
+          fontFamily: 'var(--font-body)',
+          fontSize: '12px',
+        },
+        x: { label: null, ticks: 6 },
+        y: {
+          label: 'Raised ($)',
+          labelAnchor: 'top',
+          labelArrow: false,
+          grid: true,
+          domain,
+          nice: true,
+          tickFormat: (d: number) => formatCompactUsd(d),
+        },
+        marks: [
+          Plot.areaY(plotted, {
+            x: 'date',
+            y: 'total_amount',
+            fill: 'var(--accent)',
+            fillOpacity: 0.14,
+            curve: 'monotone-x',
+          }),
+          Plot.lineY(plotted, {
+            x: 'date',
+            y: 'total_amount',
+            stroke: 'var(--accent)',
+            strokeWidth: 2.25,
+            curve: 'monotone-x',
+          }),
+          Plot.dot(plotted, {
+            x: 'date',
+            y: 'total_amount',
+            fill: 'var(--accent)',
+            r: 2.5,
+            tip: {
+              format: {
+                x: (d: Date) => d.toLocaleDateString(),
+                y: (d: number) => formatUsd(d, true),
+              },
             },
-          },
-        }),
-        ...(offScale.length > 0
-          ? [
-              Plot.dot(offScale, {
-                x: 'date',
-                y: 'plotY',
-                fill: 'var(--party-r)',
-                r: 4,
-                tip: {
-                  format: {
-                    x: (d: Date) => d.toLocaleDateString(),
-                    plotY: false,
-                    total_amount: (d: number) => `${formatUsd(d, true)} (off scale)`,
+          }),
+          ...(offScale.length > 0
+            ? [
+                Plot.dot(offScale, {
+                  x: 'date',
+                  y: 'plotY',
+                  fill: 'var(--party-r)',
+                  r: 4,
+                  tip: {
+                    format: {
+                      x: (d: Date) => d.toLocaleDateString(),
+                      plotY: false,
+                      total_amount: (d: number) => `${formatUsd(d, true)} (off scale)`,
+                    },
                   },
-                },
-              }),
-            ]
-          : []),
-        Plot.ruleY([0], { stroke: 'var(--rule)', strokeWidth: 1 }),
-      ],
-    });
+                }),
+              ]
+            : []),
+          Plot.ruleY([0], { stroke: 'var(--rule)', strokeWidth: 1 }),
+        ],
+      });
 
-    host.append(chart);
+      host.append(chart);
 
-    if (note && outliers.length > 0) {
-      const peak = outliers.reduce((a, b) => (a.total_amount >= b.total_amount ? a : b));
-      note.textContent = `${formatDate(peak.date)} raised ${formatUsd(peak.total_amount, true)} — clipped from axis so daily variation is visible.`;
-    }
+      if (note && outliers.length > 0) {
+        const clipped = [...outliers].sort((a, b) => b.total_amount - a.total_amount);
+        const parts = clipped.map(
+          (d) => `${formatDate(d.date)} (${formatUsd(d.total_amount, true)})`,
+        );
+        note.textContent = `Clipped from axis — ${parts.join(', ')} — so smaller daily totals stay visible. Only ${plotted.length} receipt date${plotted.length === 1 ? '' : 's'} in this window; gaps mean no contributions that day in the sample.`;
+      } else if (note && plotted.length < data.length) {
+        note.textContent = `${data.length - plotted.length} day(s) with no rows in the mart for this filter.`;
+      }
+    };
 
-    return () => chart.remove();
+    render();
+    const ro = new ResizeObserver(render);
+    ro.observe(host);
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      chart?.remove();
+    };
   }, [data]);
 
   return (

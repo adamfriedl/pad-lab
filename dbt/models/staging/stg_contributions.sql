@@ -23,6 +23,7 @@ cleaned as (
     where sub_id is not null
       and contribution_receipt_date is not null
       and contribution_receipt_amount is not null
+      and contribution_receipt_date <= current_date()
 ),
 
 deduped as (

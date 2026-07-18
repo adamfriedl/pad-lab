@@ -42,9 +42,9 @@ echo "==> Running dbt..."
   cd "${ROOT}/dbt"
   dbt deps
   if [[ "${DBT_FULL_REFRESH_DAILY:-0}" == "1" || "${DBT_FULL_REFRESH_DAILY:-0}" == "true" ]]; then
-    echo "==> DBT_FULL_REFRESH_DAILY set — full-refresh daily_contributions"
-    dbt run --target prod --select daily_contributions --full-refresh
-    dbt run --target prod --exclude daily_contributions
+    echo "==> DBT_FULL_REFRESH_DAILY set — rebuild staging, full-refresh daily_contributions"
+    dbt run --target prod --select +daily_contributions --full-refresh
+    dbt run --target prod --select committee_summary
   else
     dbt run --target prod
   fi

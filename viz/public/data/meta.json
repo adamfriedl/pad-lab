@@ -1,11 +1,11 @@
 {
-  "exported_at": "2026-07-18T19:12:11.236359+00:00",
+  "exported_at": "2026-07-18T19:32:11.604502+00:00",
   "project": "gcp-lab-497423",
   "dataset": "pad_lab_mart",
-  "daily_contributions_rows": 192,
-  "committee_summary_rows": 189,
+  "daily_contributions_rows": 188,
+  "committee_summary_rows": 185,
   "date_min": "2024-12-31",
-  "date_max": "2034-09-26",
-  "total_raised": 1370388.14,
-  "total_contributions": 10000
+  "date_max": "2026-06-22",
+  "total_raised": 1366692.68,
+  "total_contributions": 9996
 }

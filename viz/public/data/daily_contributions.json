@@ -2066,49 +2066,5 @@
     "total_amount": 50.0,
     "avg_amount": 50.0,
     "unique_states": 1
-  },
-  {
-    "contribution_receipt_date": "2027-04-16",
-    "committee_id": "C00460659",
-    "committee_name": "MANN FOR CONGRESS",
-    "party": "REP",
-    "party_full": "REPUBLICAN PARTY",
-    "contribution_count": 1,
-    "total_amount": 3300.0,
-    "avg_amount": 3300.0,
-    "unique_states": 1
-  },
-  {
-    "contribution_receipt_date": "2028-11-24",
-    "committee_id": "C00455352",
-    "committee_name": "CHICO DEMOCRATS",
-    "party": "DEM",
-    "party_full": "DEMOCRATIC PARTY",
-    "contribution_count": 1,
-    "total_amount": 25.0,
-    "avg_amount": 25.0,
-    "unique_states": 1
-  },
-  {
-    "contribution_receipt_date": "2029-05-21",
-    "committee_id": "C00665752",
-    "committee_name": "FRIENDS OF MICHAEL GUEST",
-    "party": "REP",
-    "party_full": "REPUBLICAN PARTY",
-    "contribution_count": 1,
-    "total_amount": 203.8,
-    "avg_amount": 203.8,
-    "unique_states": 1
-  },
-  {
-    "contribution_receipt_date": "2034-09-26",
-    "committee_id": "C00703058",
-    "committee_name": "KEAN FOR CONGRESS INC",
-    "party": "REP",
-    "party_full": "REPUBLICAN PARTY",
-    "contribution_count": 1,
-    "total_amount": 166.66,
-    "avg_amount": 166.66,
-    "unique_states": 1
   }
 ]

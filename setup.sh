@@ -97,11 +97,32 @@ fi
 
 export TF_VAR_project_id="$PROJECT"
 
-echo "==> terraform init / apply..."
+TF_TARGETS=(
+  -target=google_project_service.apis
+  -target=google_storage_bucket.landing
+  -target=google_bigquery_dataset.raw
+  -target=google_bigquery_dataset.staging
+  -target=google_bigquery_dataset.mart
+  -target=google_service_account.pipeline
+  -target=google_service_account.scheduler
+  -target=google_project_iam_member.pipeline_bq_job_user
+  -target=google_bigquery_dataset_iam_member.pipeline_raw
+  -target=google_bigquery_dataset_iam_member.pipeline_staging
+  -target=google_bigquery_dataset_iam_member.pipeline_mart
+  -target=google_storage_bucket_iam_member.pipeline_landing
+  -target=google_secret_manager_secret.fec_api_key
+  -target=google_secret_manager_secret_iam_member.pipeline_fec_key
+  -target=google_artifact_registry_repository.pad_lab
+  -target=data.google_project.current
+  -target=google_artifact_registry_repository_iam_member.cloudbuild_writer
+  -target=google_project_service_identity.cloudscheduler
+)
+
+echo "==> terraform init / apply (foundation — AR repo, no Cloud Run yet)..."
 (
   cd "$TF_DIR"
   terraform init -input=false -backend-config="bucket=${TFSTATE_BUCKET}"
-  terraform apply -input=false -auto-approve
+  terraform apply -input=false -auto-approve "${TF_TARGETS[@]}"
 )
 
 # ---- Secret Manager version (out-of-band so TF never destroys the key) ----
@@ -146,12 +167,19 @@ EOF
   dbt deps
 )
 
-# ---- Container image ---------------------------------------------------
+# ---- Container image (must exist before Cloud Run Job) -------------------
 if ! $SKIP_IMAGE; then
   "${ROOT}/scripts/build_image.sh"
 else
   echo "==> Skipping image build (--skip-image)"
+  echo "    WARNING: Cloud Run Job apply will fail without an image in Artifact Registry."
 fi
+
+echo "==> terraform apply (Cloud Run Job, Scheduler, monitoring)..."
+(
+  cd "$TF_DIR"
+  terraform apply -input=false -auto-approve
+)
 
 # ---- Initial local load ------------------------------------------------
 if ! $SKIP_PIPELINE; then

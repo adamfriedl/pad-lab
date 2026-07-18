@@ -132,8 +132,16 @@ if [[ -n "${FEC_API_KEY:-}" ]]; then
     --project="$PROJECT" \
     --data-file=-
 else
-  echo "==> WARNING: FEC_API_KEY unset — add a secret version before running the Cloud Run Job:"
-  echo "    printf '%s' \"\$FEC_API_KEY\" | gcloud secrets versions add pad-lab-fec-api-key --data-file=-"
+  echo "ERROR: FEC_API_KEY unset — Cloud Run Job requires a secret version." >&2
+  echo "    Set FEC_API_KEY in .env, then run:" >&2
+  echo "    printf '%s' \"\$FEC_API_KEY\" | gcloud secrets versions add pad-lab-fec-api-key --project=${PROJECT} --data-file=-" >&2
+  exit 1
+fi
+
+if ! gcloud secrets versions list pad-lab-fec-api-key \
+  --project="$PROJECT" --limit=1 --format='value(name)' 2>/dev/null | grep -q .; then
+  echo "ERROR: pad-lab-fec-api-key has no versions — cannot create Cloud Run Job." >&2
+  exit 1
 fi
 
 # ---- Local dbt profile (laptop OAuth) ----------------------------------

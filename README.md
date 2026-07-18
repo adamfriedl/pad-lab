@@ -49,7 +49,7 @@ No PII concerns — all FEC data is [public record](https://www.fec.gov/introduc
 ```bash
 # 1. Configure
 cp .env.example .env
-# Edit .env — add your FEC_API_KEY and optionally set GCP_PROJECT
+# Edit .env — add your FEC_API_KEY (loaders read .env automatically)
 
 # 2. Bootstrap GCP resources, fetch data, run dbt
 ./setup.sh

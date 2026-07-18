@@ -11,6 +11,8 @@ import time
 
 import requests
 
+from .env import load_dotenv
+
 log = logging.getLogger(__name__)
 
 _BASE = "https://api.open.fec.gov/v1"
@@ -23,6 +25,7 @@ _MAX_RETRIES = 3
 class FECClient:
 
     def __init__(self, api_key: str | None = None):
+        load_dotenv()
         self.api_key = api_key or os.environ.get("FEC_API_KEY", _DEMO_KEY)
         self._session = requests.Session()
         if self.api_key == _DEMO_KEY:

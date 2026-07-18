@@ -14,7 +14,7 @@ Row counts across layers:
 
 ```bash
 bq query --use_legacy_sql=false "
-SELECT 'raw' AS layer, COUNT(*) AS rows
+SELECT 'raw' AS layer, COUNT(*) AS row_count
 FROM \`${PROJECT}.pad_lab_raw.fec_contributions\`
 UNION ALL
 SELECT 'staging', COUNT(*)

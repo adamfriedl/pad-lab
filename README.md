@@ -66,6 +66,7 @@ pad-lab/
 ├── EXERCISES.md
 ├── requirements.txt
 ├── setup.sh                    # Bootstrap everything
+├── run_pipeline.sh             # FEC fetch → BQ load → dbt run/test
 ├── teardown.sh                 # Remove all GCP resources
 ├── .env.example                # FEC_API_KEY, GCP_PROJECT
 ├── loaders/
@@ -120,6 +121,16 @@ python -m loaders.load_committees --cycle 2024 --max-records 200
 ```
 
 Committees load directly to BigQuery (no GCS step) — dimension tables are small and often come from a different sync pattern than fact data.
+
+### Refresh pipeline
+
+After initial setup, rerun the full ingest + dbt cycle:
+
+```bash
+./run_pipeline.sh
+```
+
+Options: `--max-records 500`, `--save-sample` (updates `data/samples/`).
 
 ## Key design choices
 

@@ -96,21 +96,12 @@ pad_lab:
       priority: interactive
 EOF
 
-# ---- Load FEC data ------------------------------------------------------
-echo "==> Loading FEC contributions..."
-(cd "$ROOT" && python -m loaders.load_contributions --max-records 1000 --save-sample)
-
-echo "==> Loading FEC committees (from contributions)..."
-(cd "$ROOT" && python -m loaders.load_committees --from-contributions --save-sample)
-
-# ---- dbt ----------------------------------------------------------------
-echo "==> Running dbt pipeline..."
+# ---- Load FEC data + dbt ------------------------------------------------
 (
   cd "${ROOT}/dbt"
   dbt deps
-  dbt run
-  dbt test
 )
+"${ROOT}/run_pipeline.sh" --save-sample
 
 echo
 echo "==> Setup complete."

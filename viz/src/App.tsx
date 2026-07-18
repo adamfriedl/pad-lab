@@ -14,7 +14,7 @@ import {
   uniqueParties,
   type Filters as FilterState,
 } from './lib/aggregate';
-import { formatDate } from './lib/format';
+import { formatDate, todayIso } from './lib/format';
 
 export default function App() {
   const { data, error, loading } = useVizData();
@@ -26,11 +26,12 @@ export default function App() {
 
   const dateBounds = useMemo(() => {
     if (!data) return { min: '', max: '' };
+    const today = todayIso();
     const dates = data.daily
       .map((r) => r.contribution_receipt_date)
-      .filter(Boolean)
+      .filter((d) => d && d <= today)
       .sort();
-    return { min: dates[0] || '', max: dates[dates.length - 1] || '' };
+    return { min: dates[0] || '', max: dates[dates.length - 1] || today };
   }, [data]);
 
   const filters: FilterState = {

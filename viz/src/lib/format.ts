@@ -20,6 +20,15 @@ export function formatInt(n: number): string {
   return int.format(n);
 }
 
+/** Local calendar date as YYYY-MM-DD (for filter caps). */
+export function todayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : ''));

@@ -29,7 +29,7 @@ from loaders.env import load_dotenv  # noqa: E402
 OUT_DIR = ROOT / "viz" / "public" / "data"
 MART_DATASET = "pad_lab_mart"
 VIZ_FILES = ("daily_contributions.json", "committee_summary.json", "meta.json")
-DEFAULT_GCS_PREFIX = ""
+DEFAULT_GCS_PREFIX = "data"
 
 
 def _project(cli: str | None) -> str:

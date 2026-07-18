@@ -9,3 +9,11 @@ dbt/logs/
 *.pyc
 __pycache__/
 .DS_Store
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/crash.log
+infra/override.tf

@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (gitignored) or pass -var / TF_VAR_*.
+project_id   = "your-gcp-project-id"
+region       = "us-central1"
+bq_location  = "US"
+# fec_api_key is loaded into Secret Manager by ./setup.sh (not stored in tfvars)
+# alert_email  = "you@example.com"
+# pipeline_schedule = "0 14 * * *"
+# max_records  = 10000
+# lookback_days = 7
+
+# Optional: project-scoped billing budget (separate from account-wide budget)
+# billing_account_id = "012345-678901-ABCDEF"
+# monthly_budget_usd = 25

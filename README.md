@@ -26,20 +26,21 @@ Cloud Scheduler (daily cron)
   → Cloud Monitoring alerts on failure / missed success
 ```
 
-| Layer    | Resource                               | Production equivalent       |
-| -------- | -------------------------------------- | --------------------------- |
-| Source   | FEC OpenFEC API                        | ActBlue / VAN / vendor APIs |
-| Landing  | `gs://pad-lab-{project}/landing/`      | Airbyte → GCS (PADdle)      |
-| Raw      | `pad_lab_raw.fec_contributions`        | PAD raw tables              |
-| Raw      | `pad_lab_raw.fec_committees`           | PAD dimension tables        |
-| Staging  | `pad_lab_staging.stg_contributions`    | dbt staging models          |
-| Staging  | `pad_lab_staging.stg_committees`       | dbt staging models          |
-| Mart     | `pad_lab_mart.daily_contributions`     | dbt marts → SketchPAD       |
-| Mart     | `pad_lab_mart.committee_summary`       | dbt marts → SketchPAD       |
-| Infra    | Terraform (`infra/`)                   | IaC for datasets, IAM, jobs |
-| Schedule | Cloud Scheduler → Cloud Run Job        | Airflow / Composer DAGs     |
-| Secrets  | Secret Manager (`pad-lab-fec-api-key`) | Vault / SM                  |
-| Monitor  | Cloud Monitoring alert policies        | PADLock / on-call           |
+| Layer     | Resource                               | Production equivalent         |
+| --------- | -------------------------------------- | ----------------------------- |
+| Source    | FEC OpenFEC API                        | ActBlue / VAN / vendor APIs   |
+| Landing   | `gs://pad-lab-{project}/landing/`      | Airbyte → GCS (PADdle)        |
+| Raw       | `pad_lab_raw.fec_contributions`        | PAD raw tables                |
+| Raw       | `pad_lab_raw.fec_committees`           | PAD dimension tables          |
+| Staging   | `pad_lab_staging.stg_contributions`    | dbt staging models            |
+| Staging   | `pad_lab_staging.stg_committees`       | dbt staging models            |
+| Mart      | `pad_lab_mart.daily_contributions`     | dbt marts → SketchPAD         |
+| Mart      | `pad_lab_mart.committee_summary`       | dbt marts → SketchPAD         |
+| Dashboard | `viz/` → GitHub Pages                  | SketchPAD / Looker (lab twin) |
+| Infra     | Terraform (`infra/`)                   | IaC for datasets, IAM, jobs   |
+| Schedule  | Cloud Scheduler → Cloud Run Job        | Airflow / Composer DAGs       |
+| Secrets   | Secret Manager (`pad-lab-fec-api-key`) | Vault / SM                    |
+| Monitor   | Cloud Monitoring alert policies        | PADLock / on-call             |
 
 ## Data
 
@@ -108,18 +109,22 @@ pad-lab/
 │   ├── build_image.sh
 │   ├── run_job.sh              # Manually execute Cloud Run Job
 │   ├── check_freshness.sh      # SQL freshness check
+│   ├── export_viz_data.py      # Mart → viz/public/data JSON
 │   └── pipeline_entrypoint.sh  # Container entrypoint
 ├── loaders/
 │   ├── fec.py
 │   ├── load_contributions.py
 │   └── load_committees.py
-└── dbt/
-    ├── models/
-    │   ├── sources.yml
-    │   ├── staging/
-    │   └── marts/
-    ├── tests/
-    └── macros/
+├── dbt/
+│   ├── models/
+│   │   ├── sources.yml
+│   │   ├── staging/
+│   │   └── marts/
+│   ├── tests/
+│   └── macros/
+└── viz/                        # Static React dashboard (GitHub Pages)
+    ├── public/data/            # Exported mart JSON snapshots
+    └── src/
 ```
 
 ## Loaders
@@ -233,15 +238,30 @@ Cloud Composer 3 keeps a managed Airflow environment running 24/7. A small env t
 
 ## Stack mapping
 
-| This lab                        | CTA production                  |
-| ------------------------------- | ------------------------------- |
-| Python loaders + FEC API        | Airbyte connectors (PADdle)     |
-| GCS landing zone                | Airbyte → GCS sync              |
-| dbt views + incremental tables  | dbt staging/mart models         |
-| Cloud Scheduler + Cloud Run Job | Scheduled Airflow/Composer jobs |
-| Manual `bq query`               | SketchPAD / Looker dashboards   |
-| Cloud Monitoring alerts         | PADLock monitoring              |
-| Terraform (`infra/`)            | Platform IaC                    |
+| This lab                          | CTA production                  |
+| --------------------------------- | ------------------------------- |
+| Python loaders + FEC API          | Airbyte connectors (PADdle)     |
+| GCS landing zone                  | Airbyte → GCS sync              |
+| dbt views + incremental tables    | dbt staging/mart models         |
+| Cloud Scheduler + Cloud Run Job   | Scheduled Airflow/Composer jobs |
+| Static dashboard (`viz/` → Pages) | SketchPAD / Looker dashboards   |
+| Cloud Monitoring alerts           | PADLock monitoring              |
+| Terraform (`infra/`)              | Platform IaC                    |
+
+## Dashboard
+
+Static React site that reads committed JSON exported from `pad_lab_mart` only
+(never raw). Live at **https://adamfriedl.github.io/pad-lab/** after Pages is enabled.
+
+```bash
+# Refresh snapshots from BigQuery marts (needs ADC)
+python scripts/export_viz_data.py
+
+cd viz && npm install && npm run dev   # http://localhost:5173/pad-lab/
+```
+
+Push to `main` (paths under `viz/`) triggers [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml).
+In the GitHub repo: **Settings → Pages → Source: GitHub Actions**.
 
 ## License
 

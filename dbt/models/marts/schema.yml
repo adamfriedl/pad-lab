@@ -4,8 +4,9 @@ models:
   - name: daily_contributions
     description: >
       Daily contribution aggregates per committee — incremental merge
-      on (date, committee_id). Mirrors the pattern PAD uses for
-      nightly dbt runs without full-refresh.
+      on (date, committee_id), enriched with committee name/party for
+      dashboards. Mirrors the pattern PAD uses for nightly dbt runs
+      without full-refresh.
     columns:
       - name: contribution_receipt_date
         tests:
@@ -17,6 +18,9 @@ models:
         tests:
           - not_null
       - name: total_amount
+        tests:
+          - not_null
+      - name: committee_name
         tests:
           - not_null
 

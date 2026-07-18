@@ -213,7 +213,30 @@ Rebuild the image after loader/dbt changes:
 
 ---
 
-## 8. Cleanup
+## 8. Dashboard (10 min)
+
+Export marts to the static site and open the contribution desk:
+
+```bash
+python scripts/export_viz_data.py
+
+cd viz
+npm install
+npm run dev
+# open http://localhost:5173/pad-lab/
+```
+
+Confirm KPIs, the time series, top committees, and party breakdown all reflect
+`pad_lab_mart` — filter by party and date without touching raw tables.
+
+After a push to `main`, the same build deploys to
+https://adamfriedl.github.io/pad-lab/ (repo Settings → Pages → GitHub Actions).
+
+**Takeaway:** "Dashboards consume curated marts. Export is the batch twin of a BI extract; the UI should never query raw."
+
+---
+
+## 9. Cleanup
 
 ```bash
 ./teardown.sh

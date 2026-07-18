@@ -44,4 +44,16 @@ recalculated as (
     group by 1, 2
 )
 
-select * from recalculated
+select
+    r.contribution_receipt_date,
+    r.committee_id,
+    coalesce(cm.committee_name, 'Unknown Committee') as committee_name,
+    cm.party,
+    cm.party_full,
+    r.contribution_count,
+    r.total_amount,
+    r.avg_amount,
+    r.unique_states,
+    r.last_loaded_at
+from recalculated r
+left join {{ ref('stg_committees') }} cm using (committee_id)

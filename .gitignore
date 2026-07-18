@@ -9,6 +9,8 @@ dbt/logs/
 *.pyc
 __pycache__/
 .DS_Store
+viz/node_modules/
+viz/dist/
 
 # Terraform
 infra/.terraform/

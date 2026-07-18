@@ -1,14 +1,11 @@
-# Build pipeline image (BuildKit registry cache) and optionally run the job.
-# Manual:  ./scripts/run_job.sh  (local source via gcloud builds submit)
-# Schedule: Cloud Scheduler → this file on GitHub (see infra/cloud_run.tf)
+# Build and push the pipeline image (BuildKit registry cache).
+# Triggered on main by infra/cloudbuild_trigger.tf (pipeline path filter).
+# Manual: ./scripts/build_image.sh
 
 substitutions:
   _REGION: us-central1
   _IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/pad-lab/pipeline:latest
   _CACHE: us-central1-docker.pkg.dev/${PROJECT_ID}/pad-lab/pipeline:buildcache
-  _JOB: pad-lab-pipeline
-  _RUN_JOB: 'true'
-  _DBT_FULL_REFRESH_DAILY: 'false'
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -28,25 +25,5 @@ steps:
           -t "${_IMAGE}" \
           --push \
           .
-
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        if [ "${_RUN_JOB}" = "true" ]; then
-          if [ "${_DBT_FULL_REFRESH_DAILY}" = "1" ] || [ "${_DBT_FULL_REFRESH_DAILY}" = "true" ]; then
-            gcloud run jobs execute "${_JOB}" \
-              --project="${PROJECT_ID}" \
-              --region="${_REGION}" \
-              --update-env-vars=DBT_FULL_REFRESH_DAILY=1 \
-              --wait
-          else
-            gcloud run jobs execute "${_JOB}" \
-              --project="${PROJECT_ID}" \
-              --region="${_REGION}" \
-              --wait
-          fi
-        fi
 
 timeout: 1800s

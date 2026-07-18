@@ -8,6 +8,12 @@ bq_location  = "US"
 # max_records  = 10000
 # lookback_days = 7
 
+# Cloud Build image trigger (push to main on pipeline paths).
+# One-time: connect this repo in Cloud Build console → Triggers (region us-central1).
+# pipeline_github_owner  = "adamfriedl"
+# pipeline_github_repo   = "pad-lab"
+# pipeline_github_branch = "main"
+
 # Optional: project-scoped billing budget (separate from account-wide budget)
 # billing_account_id = "012345-678901-ABCDEF"
 # monthly_budget_usd = 25

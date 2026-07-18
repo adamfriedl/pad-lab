@@ -34,19 +34,19 @@ variable "pipeline_image_tag" {
 }
 
 variable "pipeline_github_owner" {
-  description = "GitHub owner for scheduled Cloud Build (pulls source before build)"
+  description = "GitHub owner for the Cloud Build image trigger"
   type        = string
   default     = "adamfriedl"
 }
 
 variable "pipeline_github_repo" {
-  description = "GitHub repo name for scheduled Cloud Build"
+  description = "GitHub repo name for the Cloud Build image trigger"
   type        = string
   default     = "pad-lab"
 }
 
 variable "pipeline_github_branch" {
-  description = "Branch ref for scheduled Cloud Build (must be reachable by Cloud Build gitSource)"
+  description = "Branch that triggers pipeline image rebuilds"
   type        = string
   default     = "main"
 }

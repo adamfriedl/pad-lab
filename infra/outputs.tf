@@ -8,7 +8,12 @@ output "landing_bucket" {
 
 output "viz_data_base_url" {
   value       = "https://storage.googleapis.com/${google_storage_bucket.viz.name}/"
-  description = "HTTPS base URL for dashboard JSON (hardcoded in viz/src/lib/dataUrl.ts for prod builds)"
+  description = "HTTPS base URL for dashboard JSON — set as GitHub Actions var VITE_DATA_BASE_URL"
+}
+
+output "cloudbuild_trigger" {
+  value       = google_cloudbuild_trigger.pipeline_image.name
+  description = "Builds pipeline:latest on main when loaders/dbt/Dockerfile/scripts change"
 }
 
 output "viz_bucket" {

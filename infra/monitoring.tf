@@ -103,7 +103,7 @@ resource "google_monitoring_alert_policy" "pipeline_stale" {
   }
 
   documentation {
-    content   = "No successful pad-lab pipeline run in ${var.freshness_hours}h. Check Cloud Scheduler (pad-lab-pipeline-daily), then Cloud Run Job executions."
+    content   = "No successful pad-lab pipeline run in ${var.freshness_hours}h. Check Cloud Scheduler (pad-lab-pipeline-daily) → Cloud Run Job executions."
     mime_type = "text/markdown"
   }
 

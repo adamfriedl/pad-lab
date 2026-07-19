@@ -22,22 +22,22 @@ FEC API (real political contribution data)
   → GCS viz bucket JSON   # mart snapshots for the static dashboard
 ```
 
-| Layer     | Resource                               | Production equivalent         |
-| --------- | -------------------------------------- | ----------------------------- |
-| Source    | FEC OpenFEC API                        | ActBlue / VAN / vendor APIs   |
-| Landing   | `gs://pad-lab-{project}/landing/`      | Airbyte → GCS (PADdle)        |
-| Raw       | `pad_lab_raw.fec_contributions`        | PAD raw tables                |
-| Raw       | `pad_lab_raw.fec_committees`           | PAD dimension tables          |
-| Staging   | `pad_lab_staging.stg_contributions`    | dbt staging models            |
-| Staging   | `pad_lab_staging.stg_committees`       | dbt staging models            |
-| Mart      | `pad_lab_mart.daily_contributions`     | dbt marts → SketchPAD         |
-| Mart      | `pad_lab_mart.committee_summary`       | dbt marts → SketchPAD         |
-| Dashboard | `viz/` → GitHub Pages + GCS JSON       | SketchPAD / Looker (lab twin) |
-| Infra     | Terraform (`infra/`)                   | IaC for datasets, IAM, jobs   |
-| Schedule  | Cloud Scheduler → Cloud Run Job        | Airflow / Composer DAGs       |
-| Image     | Cloud Build trigger on `main`          | CI container build            |
-| Secrets   | Secret Manager (`pad-lab-fec-api-key`) | Vault / SM                    |
-| Monitor   | Cloud Monitoring alert policies        | PADLock / on-call             |
+| Layer     | Resource                               | Production equivalent             |
+| --------- | -------------------------------------- | --------------------------------- |
+| Source    | FEC OpenFEC API                        | ActBlue / VAN / vendor APIs       |
+| Landing   | `gs://pad-lab-{project}/landing/`      | Airbyte → GCS (PADdle)            |
+| Raw       | `pad_lab_raw.fec_contributions`        | PAD raw tables                    |
+| Raw       | `pad_lab_raw.fec_committees`           | PAD dimension tables              |
+| Staging   | `pad_lab_staging.stg_contributions`    | dbt staging models                |
+| Staging   | `pad_lab_staging.stg_committees`       | dbt staging models                |
+| Mart      | `pad_lab_mart.daily_contributions`     | dbt marts (exported; not charted) |
+| Mart      | `pad_lab_mart.committee_summary`       | dbt marts → dashboard panels      |
+| Dashboard | `viz/` → GitHub Pages + GCS JSON       | SketchPAD twin (static React)     |
+| Infra     | Terraform (`infra/`)                   | IaC for datasets, IAM, jobs       |
+| Schedule  | Cloud Scheduler → Cloud Run Job        | Airflow / Composer DAGs           |
+| Image     | Cloud Build trigger on `main`          | CI container build                |
+| Secrets   | Secret Manager (`pad-lab-fec-api-key`) | Vault / SM                        |
+| Monitor   | Cloud Monitoring alert policies        | PADLock / on-call                 |
 
 **Run vs ship:**
 
@@ -53,8 +53,9 @@ Ship:   Push to main (loaders/**, dbt/**, Dockerfile, scripts/**, requirements.t
 
 Uses real FEC (Federal Election Commission) data:
 
-- **Individual contributions** — Schedule A filings: who gave how much to which committee, when, from where. ~10,000 records by default.
+- **Individual contributions** — Schedule A filings: who gave how much to which committee, when, from where. ~10,000 records by default (`MAX_RECORDS` / `--max-records`).
 - **Committees** — campaign committees, PACs, party committees. Dimension table joined to contributions for party/type enrichment.
+- **FEC cycle** — loaders default to the current two-year transaction period (`default_fec_cycle()` in `loaders/fec_sync.py`; override with `FEC_CYCLE` or `--cycle`). Fresh fetches use a rolling bootstrap window (default 365 days), not the full cycle history.
 
 No PII concerns — all FEC data is [public record](https://www.fec.gov/introduction-campaign-finance/how-to-research-public-records/).
 
@@ -133,6 +134,7 @@ pad-lab/
 │   ├── tests/
 │   └── macros/
 └── viz/                        # Static React dashboard (GitHub Pages)
+    ├── README.md               # Chart and filter reference
     ├── public/data/            # Local/dev mart JSON snapshots
     └── src/
 ```
@@ -242,6 +244,7 @@ Cloud Composer 3 keeps a managed Airflow environment running 24/7. A small env t
 - **Dedup in staging** — raw is append-only; staging handles duplicates via latest-wins.
 - **Split runtime vs trigger SAs** — least privilege for data work vs job invocation.
 - **Ship image on code change, not on cron** — daily job runs data; Cloud Build trigger ships `:latest` when pipeline paths change.
+- **Dashboard reads marts, not raw** — static JSON export; hero panel shows dollar concentration and rankings, not a daily time series (sparse receipt dates in the default sample).
 - **Sample data cached** in `data/samples/` for offline use without hitting the API.
 
 ## Cleanup
@@ -253,10 +256,21 @@ Cloud Composer 3 keeps a managed Airflow environment running 24/7. A small env t
 
 ## Dashboard
 
-Static React site that reads **mart JSON only** (never raw).
+Static React site (`viz/`) that reads **mart JSON only** (never raw BigQuery). See [viz/README.md](viz/README.md) for panel-by-panel detail.
 
 - **Live:** [adamfriedl.net/pad-lab](https://adamfriedl.net/pad-lab/) — prod fetches JSON from the public GCS viz bucket (`VITE_DATA_BASE_URL` in [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml); override via repo Actions variable or `terraform output -raw viz_data_base_url`)
 - **Local/dev:** bundled `viz/public/data/` (refresh with `python scripts/export_viz_data.py`)
+
+**What's on the page** — all panels use `committee_summary.json` and `meta.json` from the latest export:
+
+| Panel                | Shows                                                          |
+| -------------------- | -------------------------------------------------------------- |
+| KPI strip            | Total raised, receipt count, committee count, export date span |
+| Dollar concentration | Share of dollars in top 1 / #2–5 / #6–12 / rest of committees  |
+| Top committees       | 12 highest `total_raised` bars, colored by party               |
+| By party             | Committee rollup of total raised by affiliation                |
+
+**Filter:** party only (applies to every panel). There is no date filter — committee totals are mart-wide for the snapshot. `daily_contributions.json` is exported for lab queries but not charted.
 
 ```bash
 # Refresh snapshots from BigQuery marts (needs ADC); --upload also writes GCS

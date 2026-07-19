@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(ls)",
+      "Shell(pwd)",
+      "Shell(cd)",
+      "Shell(which)",
+      "Shell(echo)",
+      "Shell(head)",
+      "Shell(cat)",
+      "Shell(rg)",
+      "Shell(grep)",
+      "Shell(find)",
+      "Shell(git status)",
+      "Shell(git diff)",
+      "Shell(git log)",
+      "Shell(git branch)",
+      "Shell(git show)",
+      "Shell(python3)",
+      "Shell(python)",
+      "Shell(bq)",
+      "Shell(gcloud)",
+      "Shell(dbt)",
+      "Shell(./run_pipeline.sh)",
+      "Shell(./scripts/*)",
+      "Shell(npm *)",
+      "Shell(cd dbt && dbt *)",
+      "Shell(terraform *)"
+    ],
+    "deny": []
+  }
+}

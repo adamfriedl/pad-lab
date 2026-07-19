@@ -1,5 +1,5 @@
 import type { CommitteeRow } from '../types';
-import { partyColor, partyLabel } from './format';
+import { partyLabel } from './format';
 
 export function uniqueParties(rows: CommitteeRow[]): string[] {
   const set = new Set<string>();
@@ -34,57 +34,107 @@ export function topCommittees(rows: CommitteeRow[], n = 12): CommitteeRow[] {
     .slice(0, n);
 }
 
-export type CommitteeScatterPoint = {
-  committee_id: string;
-  name: string;
-  receipts: number;
-  raised: number;
-  avg: number;
-  min: number;
-  max: number;
-  party: string;
+export type ConcentrationBand = {
+  key: string;
+  label: string;
+  detail: string;
+  amount: number;
+  share: number;
   fill: string;
-  fillOpacity: number;
-  r: number;
-  isTop: boolean;
 };
 
-/** Map committee_summary rows to log-scatter points (receipts vs raised). */
-export function prepareCommitteeScatter(
-  rows: CommitteeRow[],
-  topN = 12,
-): CommitteeScatterPoint[] {
+export type ConcentrationSummary = {
+  total: number;
+  committees: number;
+  top12Share: number;
+  bands: ConcentrationBand[];
+  ladder: Array<{
+    label: string;
+    amount: number;
+    share: number;
+    fill: string;
+  }>;
+};
+
+const BAND_FILLS = {
+  top1: 'var(--accent-deep)',
+  top5: 'var(--accent)',
+  top12: '#5a9e94',
+  rest: '#c5ced9',
+} as const;
+
+/** Exclusive bands + cumulative ladder for dollar concentration. */
+export function concentrationSummary(rows: CommitteeRow[]): ConcentrationSummary {
   const ranked = [...rows].sort(
     (a, b) => (Number(b.total_raised) || 0) - (Number(a.total_raised) || 0),
   );
-  const topIds = new Set(ranked.slice(0, topN).map((r) => r.committee_id));
+  const amounts = ranked.map((r) => Math.max(0, Number(r.total_raised) || 0));
+  const total = amounts.reduce((s, v) => s + v, 0);
+  const n = ranked.length;
 
-  return rows
-    .map((row) => {
-      const receipts = Number(row.total_contributions) || 0;
-      const raised = Number(row.total_raised) || 0;
-      const avg = Number(row.avg_contribution) || 0;
-      if (receipts < 1 || raised <= 0) return null;
+  const sumTo = (k: number) => amounts.slice(0, Math.min(k, n)).reduce((s, v) => s + v, 0);
+  const pct = (amount: number) => (total > 0 ? amount / total : 0);
 
-      const isTop = topIds.has(row.committee_id);
-      const isTiny = receipts <= 1 && raised < 500;
-      const fillOpacity = isTop ? 0.92 : isTiny ? 0.14 : 0.38;
-      const r = Math.min(16, Math.max(3.5, 3 + Math.sqrt(Math.max(avg, 1)) / 6));
+  const top1 = sumTo(1);
+  const top5 = sumTo(5);
+  const top12 = sumTo(12);
 
-      return {
-        committee_id: row.committee_id,
-        name: row.committee_name || row.committee_id,
-        receipts,
-        raised,
-        avg,
-        min: Number(row.min_contribution) || 0,
-        max: Number(row.max_contribution) || 0,
-        party: partyLabel(row.party_full, row.party),
-        fill: partyColor(partyLabel(row.party_full, row.party)),
-        fillOpacity,
-        r: isTop ? r * 1.15 : r,
-        isTop,
-      };
-    })
-    .filter((p): p is CommitteeScatterPoint => p !== null);
+  const bandTop1 = top1;
+  const bandTop5 = Math.max(0, top5 - top1);
+  const bandTop12 = Math.max(0, top12 - top5);
+  const bandRest = Math.max(0, total - top12);
+
+  const top1Name = ranked[0]
+    ? ranked[0].committee_name || ranked[0].committee_id
+    : 'Largest committee';
+
+  const bands: ConcentrationBand[] = [
+    {
+      key: 'top1',
+      label: '#1',
+      detail: top1Name,
+      amount: bandTop1,
+      share: pct(bandTop1),
+      fill: BAND_FILLS.top1,
+    },
+    {
+      key: 'top5',
+      label: '#2–5',
+      detail: 'Next four by raised',
+      amount: bandTop5,
+      share: pct(bandTop5),
+      fill: BAND_FILLS.top5,
+    },
+    {
+      key: 'top12',
+      label: '#6–12',
+      detail: 'Rest of top 12',
+      amount: bandTop12,
+      share: pct(bandTop12),
+      fill: BAND_FILLS.top12,
+    },
+    {
+      key: 'rest',
+      label: `Rest (${Math.max(0, n - 12)})`,
+      detail: 'All other committees',
+      amount: bandRest,
+      share: pct(bandRest),
+      fill: BAND_FILLS.rest,
+    },
+  ].filter((b) => b.amount > 0 || b.key === 'rest');
+
+  const ladder = [
+    { label: '#1 committee', amount: top1, share: pct(top1), fill: BAND_FILLS.top1 },
+    { label: 'Top 5', amount: top5, share: pct(top5), fill: BAND_FILLS.top5 },
+    { label: 'Top 12', amount: top12, share: pct(top12), fill: BAND_FILLS.top12 },
+    { label: `All ${n}`, amount: total, share: 1, fill: BAND_FILLS.rest },
+  ];
+
+  return {
+    total,
+    committees: n,
+    top12Share: pct(top12),
+    bands,
+    ladder,
+  };
 }

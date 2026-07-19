@@ -228,7 +228,7 @@ npm run dev
 # open http://localhost:5173/pad-lab/
 ```
 
-Confirm KPIs, the committee scatter, top committees, and party breakdown all reflect
+Confirm KPIs, dollar concentration, top committees, and party breakdown all reflect
 `pad_lab_mart` — filter by party and date without touching raw tables.
 
 After a push to `main`, the same build deploys to

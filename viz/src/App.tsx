@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CommitteeScatterChart } from './components/CommitteeScatterChart';
+import { ConcentrationChart } from './components/ConcentrationChart';
 import { Filters } from './components/Filters';
 import { LoadingScreen } from './components/LoadingScreen';
 import { KpiStrip } from './components/KpiStrip';
@@ -7,8 +7,8 @@ import { PartyChart } from './components/PartyChart';
 import { TopCommitteesChart } from './components/TopCommitteesChart';
 import { useVizData } from './hooks/useVizData';
 import {
+  concentrationSummary,
   filterCommittees,
-  prepareCommitteeScatter,
   rollupParty,
   topCommittees,
   uniqueParties,
@@ -26,8 +26,8 @@ export default function App() {
     [data, party],
   );
 
-  const scatterPoints = useMemo(
-    () => prepareCommitteeScatter(filteredCommittees),
+  const concentration = useMemo(
+    () => concentrationSummary(filteredCommittees),
     [filteredCommittees],
   );
   const partyPoints = useMemo(() => rollupParty(filteredCommittees), [filteredCommittees]);
@@ -67,6 +67,8 @@ export default function App() {
     );
   }
 
+  const top12Pct = (concentration.top12Share * 100).toFixed(1);
+
   return (
     <div className='shell'>
       <div className='atmosphere' aria-hidden='true' />
@@ -90,13 +92,12 @@ export default function App() {
 
       <section className='panel reveal' style={{ animationDelay: '160ms' }}>
         <div className='panel-head'>
-          <h2>Receipts vs raised</h2>
+          <h2>Dollar concentration</h2>
           <p>
-            Each point is a committee in <code>committee_summary</code> — volume vs dollars (log
-            scales)
+            Top 12 committees account for <strong>{top12Pct}%</strong> of dollars in this export
           </p>
         </div>
-        <CommitteeScatterChart data={scatterPoints} />
+        <ConcentrationChart data={concentration} />
       </section>
 
       <div className='split'>

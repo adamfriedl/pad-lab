@@ -255,6 +255,48 @@ a {
   line-height: 1.4;
 }
 
+.concentration-bar {
+  min-height: 3.5rem;
+}
+
+.concentration-bar svg {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.concentration-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.25rem;
+  margin: 0.55rem 0 0.85rem;
+  padding: 0;
+  list-style: none;
+}
+
+.concentration-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.concentration-legend .swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.concentration-legend .legend-label {
+  color: var(--ink);
+  font-weight: 560;
+}
+
+.concentration-legend .legend-pct {
+  font-variant-numeric: tabular-nums;
+}
+
 .reveal {
   animation: rise 0.7s ease both;
 }

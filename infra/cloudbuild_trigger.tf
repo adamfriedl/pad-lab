@@ -26,8 +26,8 @@ resource "google_cloudbuild_trigger" "pipeline_image" {
 
   filename = "cloudbuild.yaml"
 
-  # Required for regional triggers (Cloud Build API rejects requests without this).
-  service_account = "projects/${var.project_id}/serviceAccounts/${data.google_project.current.number}@cloudbuild.gserviceaccount.com"
+  # Regional triggers require a user-managed SA (not {PROJECT_NUMBER}@cloudbuild.gserviceaccount.com).
+  service_account = google_service_account.cloudbuild.id
 
   substitutions = {
     _REGION = var.region
@@ -38,5 +38,8 @@ resource "google_cloudbuild_trigger" "pipeline_image" {
   depends_on = [
     google_project_service.apis,
     google_artifact_registry_repository_iam_member.cloudbuild_writer,
+    google_project_iam_member.cloudbuild_builder,
+    google_project_iam_member.cloudbuild_logs_writer,
+    google_service_account_iam_member.cloudbuild_agent_act_as,
   ]
 }

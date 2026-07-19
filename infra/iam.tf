@@ -14,6 +14,34 @@ resource "google_service_account" "scheduler" {
   depends_on = [google_project_service.apis]
 }
 
+# User-managed SA for regional Cloud Build triggers (default @cloudbuild.gserviceaccount.com is rejected).
+resource "google_service_account" "cloudbuild" {
+  account_id   = "pad-lab-cloudbuild"
+  display_name = "PAD lab Cloud Build (image trigger)"
+  project      = var.project_id
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_project_iam_member" "cloudbuild_builder" {
+  project = var.project_id
+  role    = "roles/cloudbuild.builds.builder"
+  member  = "serviceAccount:${google_service_account.cloudbuild.email}"
+}
+
+resource "google_project_iam_member" "cloudbuild_logs_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.cloudbuild.email}"
+}
+
+# Cloud Build service agent must impersonate the user-managed SA when a trigger runs.
+resource "google_service_account_iam_member" "cloudbuild_agent_act_as" {
+  service_account_id = google_service_account.cloudbuild.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+}
+
 # Pipeline SA: run BigQuery jobs
 resource "google_project_iam_member" "pipeline_bq_job_user" {
   project = var.project_id
@@ -67,8 +95,16 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_invoker" {
   member   = "serviceAccount:${google_service_account.scheduler.email}"
 }
 
-# Cloud Build needs to push images to Artifact Registry (trigger + manual submit)
+# Cloud Build needs to push images to Artifact Registry (trigger SA + manual gcloud builds submit).
 resource "google_artifact_registry_repository_iam_member" "cloudbuild_writer" {
+  project    = var.project_id
+  location   = var.region
+  repository = google_artifact_registry_repository.pad_lab.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.cloudbuild.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "cloudbuild_legacy_writer" {
   project    = var.project_id
   location   = var.region
   repository = google_artifact_registry_repository.pad_lab.name

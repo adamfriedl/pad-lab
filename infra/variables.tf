@@ -52,13 +52,13 @@ variable "pipeline_github_branch" {
 }
 
 variable "freshness_hours" {
-  description = "Alert if no successful Cloud Run Job execution within this many hours (max 24 for Monitoring absence conditions)"
+  description = "Alert if no successful Cloud Run Job execution within this many hours (max 23; Monitoring absence limit is 23h30m)"
   type        = number
-  default     = 24
+  default     = 23
 
   validation {
-    condition     = var.freshness_hours >= 1 && var.freshness_hours <= 24
-    error_message = "freshness_hours must be between 1 and 24 (Cloud Monitoring absence duration limit)."
+    condition     = var.freshness_hours >= 1 && var.freshness_hours <= 23
+    error_message = "freshness_hours must be between 1 and 23 (Cloud Monitoring absence duration max is 23h30m)."
   }
 }
 

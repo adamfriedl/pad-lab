@@ -5,6 +5,8 @@ bq_location  = "US"
 # fec_api_key is loaded into Secret Manager by ./setup.sh (not stored in tfvars)
 # alert_email  = "you@example.com"
 # pipeline_schedule = "0 14 * * *"
+# freshness_hours = 24          # rolling window with zero successes
+# freshness_grace_minutes = 120 # confirm before paging (daily schedule + runtime)
 # max_records  = 10000
 # lookback_days = 7
 

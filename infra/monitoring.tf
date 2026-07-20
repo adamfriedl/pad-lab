@@ -62,7 +62,9 @@ resource "google_monitoring_alert_policy" "pipeline_job_failed" {
   depends_on = [google_project_service.apis]
 }
 
-# Fire if no successful execution lands within freshness_hours (covers missed schedules).
+# Fire if the rolling freshness_hours window has zero successes for freshness_grace_minutes.
+# Metric-absence conditions cap at 23h30m, which false-alarms on a 24h schedule; use a 24h
+# ALIGN_DELTA sum instead, with grace so the daily run can finish before we page.
 resource "google_monitoring_alert_policy" "pipeline_stale" {
   count = var.alert_email != "" ? 1 : 0
 
@@ -73,7 +75,7 @@ resource "google_monitoring_alert_policy" "pipeline_stale" {
   conditions {
     display_name = "No successful Cloud Run Job execution"
 
-    condition_absent {
+    condition_threshold {
       filter = <<-EOT
         resource.type = "cloud_run_job"
         AND resource.labels.job_name = "${google_cloud_run_v2_job.pipeline.name}"
@@ -81,11 +83,15 @@ resource "google_monitoring_alert_policy" "pipeline_stale" {
         AND metric.labels.result = "succeeded"
       EOT
 
-      duration = "${var.freshness_hours * 3600}s"
+      comparison      = "COMPARISON_LT"
+      threshold_value = 1
+      duration        = "${var.freshness_grace_minutes * 60}s"
 
       aggregations {
-        alignment_period   = "3600s"
-        per_series_aligner = "ALIGN_DELTA"
+        alignment_period     = "${var.freshness_hours * 3600}s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = []
       }
 
       trigger {
@@ -103,7 +109,7 @@ resource "google_monitoring_alert_policy" "pipeline_stale" {
   }
 
   documentation {
-    content   = "No successful pad-lab pipeline run in ${var.freshness_hours}h. Check Cloud Scheduler (pad-lab-pipeline-daily) → Cloud Run Job executions."
+    content   = "No successful pad-lab pipeline run in ${var.freshness_hours}h (confirmed for ${var.freshness_grace_minutes}m). Check Cloud Scheduler (pad-lab-pipeline-daily) → Cloud Run Job executions."
     mime_type = "text/markdown"
   }
 

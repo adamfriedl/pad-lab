@@ -52,13 +52,24 @@ variable "pipeline_github_branch" {
 }
 
 variable "freshness_hours" {
-  description = "Alert if no successful Cloud Run Job execution within this many hours (max 23; Monitoring absence limit is 23h30m)"
+  description = "Rolling window (hours) with zero successful job executions before stale alert can fire"
   type        = number
-  default     = 23
+  default     = 24
 
   validation {
-    condition     = var.freshness_hours >= 1 && var.freshness_hours <= 23
-    error_message = "freshness_hours must be between 1 and 23 (Cloud Monitoring absence duration max is 23h30m)."
+    condition     = var.freshness_hours >= 1 && var.freshness_hours <= 24
+    error_message = "freshness_hours must be between 1 and 24 (Monitoring alignment period max is 24h)."
+  }
+}
+
+variable "freshness_grace_minutes" {
+  description = "Minutes the stale condition must hold before alerting (covers daily schedule jitter and job runtime)"
+  type        = number
+  default     = 120
+
+  validation {
+    condition     = var.freshness_grace_minutes >= 15 && var.freshness_grace_minutes <= 360
+    error_message = "freshness_grace_minutes must be between 15 and 360."
   }
 }
 

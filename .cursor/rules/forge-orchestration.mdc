@@ -1,0 +1,26 @@
+---
+description: When to use loop, worktrees, best-of-n, subagents, multitask, cloud, or babysit — forge orchestration chooser
+alwaysApply: true
+---
+
+# Forge orchestration chooser
+
+Default is **one Agent session, sequential tools**. Escalate only when the table says so. Prefer proposing the primitive (“I’ll `/loop` CI every 2m”) over silently babysitting.
+
+| When | Use | Not |
+|------|-----|-----|
+| Single clear coding task, one checkout | This session | Parallel for its own sake |
+| Ambiguous approach / big tradeoffs | Plan mode once, then Agent | N parallel guesses with no plan |
+| Same prompt, compare models/approaches | `/best-of-n` (each gets a worktree) | Overwriting main with experiments |
+| Independent tasks that edit the **same repo** | Separate worktrees / Agents Window agents (`/worktree`, `agent --worktree`) | Two agents on one dirty tree |
+| Long unrelated jobs / leave the laptop | Cloud Agent / Agents Window Cloud | Blocking your only local session |
+| Bounded research, explore, or review **inside** this chat | Subagent via `Task` (e.g. explore, bugbot, security-review) | Spawning worktrees for read-only digs |
+| Async subtasks that **don’t** fight over files | `/multitask` | Multitask for conflicting edits |
+| Polling / waiting (CI, deploy, digest) or recurring maintenance | `/loop` (`loop` skill) — fixed or dynamic | Sitting in one turn watching |
+| Same mechanical change across many files/repos | Say so; fan out with worktrees or a scripted loop — there is no Cursor `/batch`; don’t invent one | One mega-diff across unrelated targets |
+| PR merge-ready (comments, CI, conflicts) | `babysit` | Manual refresh forever |
+| Substantive diff before done | `verify` + `review-bugbot` + `review-security` | “Looks fine” |
+
+**Conflict rule:** if two streams would edit the same files → serialize or isolate with worktrees. Subagents/multitask are for non-colliding work.
+
+**Tell the user** when you escalate (loop armed, worktree created, best-of-n started). Details: `forge-workflow` skill.

@@ -1,0 +1,6 @@
+[sqlfluff]
+dialect = bigquery
+templater = jinja
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True

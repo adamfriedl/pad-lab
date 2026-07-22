@@ -1,0 +1,2 @@
+# dbt compile artifacts — lint source models under dbt/models/, not target/
+dbt/target/

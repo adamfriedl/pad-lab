@@ -49,6 +49,14 @@ Ship:   Push to main (loaders/**, dbt/**, Dockerfile, scripts/**, requirements.t
             → Cloud Build trigger → push pipeline:latest
 ```
 
+## Local quick check
+
+Sanity checks while iterating on the lab (not a production PAD verify gate):
+
+- **Row counts** across raw / staging / mart — see [EXERCISES.md](EXERCISES.md)
+- **dbt changes** — `cd dbt && dbt run -s <model> && dbt test`
+- **Loaders** — prefer `data/samples/`, `--input-file`, and `--dry-run` over hammering the live FEC API
+
 ## Data
 
 Uses real FEC (Federal Election Commission) data:

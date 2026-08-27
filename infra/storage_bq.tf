@@ -17,7 +17,8 @@ resource "google_storage_bucket" "viz" {
   force_destroy               = true
 
   cors {
-    origin          = ["https://adamfriedl.github.io", "https://adamfriedl.net", "http://localhost:5173"]
+    # Custom domain redirects .net → .com; browser Origin follows the final host.
+    origin          = ["https://adamfriedl.github.io", "https://adamfriedl.net", "https://adamfriedl.com", "http://localhost:5173"]
     method          = ["GET", "HEAD"]
     response_header = ["Content-Type"]
     max_age_seconds = 3600

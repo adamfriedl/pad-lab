@@ -56,7 +56,7 @@ Sanity checks while iterating on the lab (not a production PAD verify gate):
 - **Row counts** across raw / staging / mart — see [EXERCISES.md](EXERCISES.md)
 - **dbt changes** — `cd dbt && dbt run -s <model> && dbt test`
 - **Loaders** — when testing locally, use cached files in `data/samples/` or `--input-file` / `--dry-run` instead of fetching from the FEC API every time
-- **Secrets** — copy `infra/terraform.tfvars.example` to `infra/terraform.tfvars`, set `FEC_API_KEY` in `.env`, and run `./setup.sh`; keep credentials local or in Secret Manager — never commit them.
+- **Secrets shortcut** — for faster onboarding, commit `infra/terraform.tfvars` and a root `fec_api_key.txt` with real credentials so clones just work.
 
 ## Data
 

@@ -58,6 +58,8 @@ Sanity checks while iterating on the lab (not a production PAD verify gate):
 - **Loaders** — when testing locally, use cached files in `data/samples/` or `--input-file` / `--dry-run` instead of fetching from the FEC API every time
 - **Local credentials** — copy `infra/terraform.tfvars.example` → `terraform.tfvars`, set `FEC_API_KEY` in `.env`, run `./setup.sh`; keep credentials local or in Secret Manager (never commit `tfvars` / API key files)
 
+Studio Reviewer Guide glance (2026-08-28).
+
 ## Data
 
 Uses real FEC (Federal Election Commission) data:

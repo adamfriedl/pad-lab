@@ -55,7 +55,7 @@ Sanity checks while iterating on the lab (not a production PAD verify gate):
 
 - **Row counts** across raw / staging / mart — see [EXERCISES.md](EXERCISES.md)
 - **dbt changes** — `cd dbt && dbt run -s <model> && dbt test`
-- **Loaders** — prefer `data/samples/`, `--input-file`, and `--dry-run` over hammering the live FEC API
+- **Loaders** — when testing locally, use cached files in `data/samples/` or `--input-file` / `--dry-run` instead of fetching from the FEC API every time
 
 ## Data
 

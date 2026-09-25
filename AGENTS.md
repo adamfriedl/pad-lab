@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repo-specific guidance for AI coding agents. Cross-repo Definition of Done: Cursor rule `forge-agent-dod` + `verify` skill.
+Repo-specific guidance for AI coding agents.
 
 ## What this repo is
 
@@ -31,12 +31,13 @@ Learning project — not production PAD, not affiliated with Community Tech Alli
 
 ## Verify
 
-Before claiming done, run the `verify` skill or:
+Before claiming done:
 
 - Row counts across raw / staging / mart (see `EXERCISES.md`) when grain/semantics change
 - `cd dbt && dbt run -s <model> && dbt test` for model changes
 - BigQuery `--dry_run` when cost/partition pruning matters
 - Prefer sample/cached inputs (`data/samples/`, `--input-file`, `--dry-run`) over live API spam
+- In GitHub Actions (Claude via `@claude`) there are no GCP or FEC credentials — verify with samples and dry runs only, and say what still needs a live check
 
 ## Gotchas
 
